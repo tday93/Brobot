@@ -45,7 +45,7 @@ async def s_file(r):
     return sent
 
 async def s_react(r):
-    sent = await client.send_file(r.message, r.content)
+    sent = await client.add_reaction(r.message, r.content)
     return sent
 
 rfuncs = {'text':s_msg, 'file':s_file, 'react':s_react}
