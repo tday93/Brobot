@@ -4,53 +4,86 @@ import subprocess
 import botplugins
 import urllib.request
 import yaml
-botresponses = botplugins.BotPlugins()
-client =discord.Client()
-
-@client.event
-async def on_ready():
-    print("logged in as")
-    print(client.user.name)
-    print(client.user.id)
-    print('-------')
-
-@client.event
-async def on_message(message, num = 10):
+import atexit
+br = botplugins.BotPlugins
 
 
-    def is_me(m):
-        return m.author == client.user
+class BroBot(discord.Client, br):
 
-    if message.author == client.user:
-        return
 
-    if message.content.startswith("!delete"):
-        num = int(message.content.split(' ')[1])
-        await client.purge_from(message.channel, limit=num, check=is_me)
-        return
+    def __init__(self):
+        self.fdb = self.getjson("factoids.json")
+        self.qdb = self.getjson("quotes.json")
+        self.rdb = self.getjson("reactions.json")
+        br.__init__(self)
+        super().__init__()
 
-    response = botresponses.get_response(message, client)
-    if response != None:
-        for r in response:
-            if r != None:
-                await rfuncs[r.rtype](r)
+    def cleanup(self):
+        print("cleaning up")
+        self.writejson("factoids.json", self.fdb)
+        self.writejson("reactions.json", self.rdb)
+        self.writejson("quotes.json", self.qdb)
 
-async def s_msg(r):
-    print("SENDING FROM HERE")
-    sent = await client.send_message(r.message.channel, r.content)
-    return sent
+    async def on_ready(self):
+        print("logged in as")
+        print(self.user.name)
+        print(self.user.id)
+        print('-------')
 
-async def s_file(r):
-    sent = await client.send_file(r.message.channel, r.content)
-    return sent
+    async def on_message(self,message, num = 10):
 
-async def s_react(r):
-    sent = await client.add_reaction(r.message, r.content)
-    return sent
+        print(message.content)
+        if message.author == self.user:
+            return
 
-rfuncs = {'text':s_msg, 'file':s_file, 'react':s_react}
+        await self.get_response(message)
+
+
+    async def safe_send_message(self, dest, content):
+        msg = None
+        try:
+            msg = await self.send_message(dest, content)
+        except:
+            print("nope")
+
+
+    async def safe_send_file(self, dest, content):
+        msg = None
+        try:
+            msg = await self.send_file(dest, content)
+        except:
+            print("Nada")
+
+    async def safe_add_reaction(self, message, content):
+        try:
+            await self.add_reaction(message, content)
+        except:
+            print("no way")
+"""
+    async def s_msg(r):
+        print("SENDING FROM HERE")
+        sent = await client.send_message(r.message.channel, r.content)
+        return sent
+
+    async def s_file(r):
+        sent = await client.send_file(r.message.channel, r.content)
+        return sent
+
+    async def s_react(r):
+        sent = await client.add_reaction(r.message, r.content)
+        return sent
+
+    rfuncs = {'text':s_msg, 'file':s_file, 'react':s_react}
+"""
+
 
 with open("SECRETS.yaml", 'r') as filein:
     secrets = yaml.load(filein)
+bot = BroBot()
+bot.run(secrets["token"])
 
-client.run(secrets["token"])
+@atexit.register
+def save_stuff():
+    bot.cleanup()
+
+
