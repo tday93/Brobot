@@ -8,7 +8,7 @@ import json
 import string
 import re
 from bhelpers import BResponse
-
+import yaml
 
 command_aliases ={
         "whichchannel":['!whichchannel'],
@@ -23,8 +23,10 @@ command_aliases ={
         "getquote":['!getquote']
         }
 
+with open("SECRETS.yaml", "r") as filein:
+    secrets = yaml.load(filein)
 
-tumblr_api_key = 'Grn0lLQRuVxbNPPEbJgVFcgaCYAqYA612l8OqrLTDOu2cRsr3s'
+tumblr_api_key = secrets['tumblrapi']
 
 def makeRegistrar():
     registry = {}
