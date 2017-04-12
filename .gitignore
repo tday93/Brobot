@@ -1,0 +1,14 @@
+# LOCAL DATA#
+*.json
+*.yaml
+*.jpg
+*.png
+
+
+# Other Directories #
+dev/
+memes/
+__pycache__/
+DJBROBOT/
+
+
