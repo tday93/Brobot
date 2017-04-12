@@ -59,22 +59,6 @@ class BroBot(discord.Client, br):
             await self.add_reaction(message, content)
         except:
             print("no way")
-"""
-    async def s_msg(r):
-        print("SENDING FROM HERE")
-        sent = await client.send_message(r.message.channel, r.content)
-        return sent
-
-    async def s_file(r):
-        sent = await client.send_file(r.message.channel, r.content)
-        return sent
-
-    async def s_react(r):
-        sent = await client.add_reaction(r.message, r.content)
-        return sent
-
-    rfuncs = {'text':s_msg, 'file':s_file, 'react':s_react}
-"""
 
 
 with open("SECRETS.yaml", 'r') as filein:
