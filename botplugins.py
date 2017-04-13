@@ -30,7 +30,8 @@ class BotPlugins(object):
                 "!brobotreact": self.addreaction,
                 "!addquote": self.addquote,
                 "!getquote": self.getquote,
-                "!add": self.adddjbrobot
+                "!add": self.adddjbrobot,
+                "!memeplease": self.memeplease
 
                 }
 
@@ -104,7 +105,10 @@ class BotPlugins(object):
         await self.safe_send_file(messgae.channel,'butter.jpg')
 
     async def sasuke(self, message):
-        await self.safe_send_file(message.channel,'SFWSASUKE.png')
+        msg = await self.safe_send_file(message.channel,'SFWSASUKE.png')
+        await self.safe_add_reaction(msg, "💯")
+        await self.safe_add_reaction(msg, "😍")
+        await self.safe_add_reaction(msg, "👌")
 
     async def addquote(self, message):
         if len(message.mentions) != 1:

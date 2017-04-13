@@ -43,6 +43,7 @@ class BroBot(discord.Client, br):
         msg = None
         try:
             msg = await self.send_message(dest, content)
+            return msg
         except:
             print("nope")
 
@@ -51,12 +52,14 @@ class BroBot(discord.Client, br):
         msg = None
         try:
             msg = await self.send_file(dest, content)
+            return msg
         except:
             print("Nada")
 
     async def safe_add_reaction(self, message, content):
         try:
-            await self.add_reaction(message, content)
+            msg = await self.add_reaction(message, content)
+            return msg
         except:
             print("no way")
 
