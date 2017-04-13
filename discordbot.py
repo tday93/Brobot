@@ -15,6 +15,7 @@ class BroBot(discord.Client, br):
         self.fdb = self.getjson("factoids.json")
         self.qdb = self.getjson("quotes.json")
         self.rdb = self.getjson("reactions.json")
+        self.bands = self.getjson("bands.json")
         br.__init__(self)
         super().__init__()
 
@@ -23,6 +24,7 @@ class BroBot(discord.Client, br):
         self.writejson("factoids.json", self.fdb)
         self.writejson("reactions.json", self.rdb)
         self.writejson("quotes.json", self.qdb)
+        self.writejson("bands.json", self.bands)
 
     async def on_ready(self):
         print("logged in as")

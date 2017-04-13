@@ -7,7 +7,6 @@ import datetime
 import json
 import string
 import re
-from bhelpers import BResponse
 import yaml
 
 with open("SECRETS.yaml", "r") as filein:
@@ -34,9 +33,11 @@ class BotPlugins(object):
                 "!memeplease": self.memeplease
 
                 }
+        self.band_chance = 20
 
     async def get_response(self,message):
 
+        await self.bandnames(message)
         first = message.content.split(' ')[0]
         if message.content in self.commands:
             await self.commands[message.content](message)
@@ -47,6 +48,27 @@ class BotPlugins(object):
         await self.getfactoid(message)
         await self.getreaction(message)
 
+    async def bandnames(self, message):
+        t = message.content.casefold()
+        s = t.split(' ')
+        print(s)
+        print(len(s))
+        if len(s) == 3:
+            if s in self.bands['band names']:
+                print("this already exists, skipping")
+                return
+            else:
+                i = random.randrange(0, self.band_chance)
+                print(i)
+                if i == 0:
+                    msg = "https://{}{}{}.tumblr.com".format(s[0],s[1],s[2])
+                    await self.safe_send_message(message.channel, msg)
+                    self.band_chance = 20
+                    return
+                self.bands["band names"].append(s)
+                self.band_chance = self.band_chance -1
+                print(self.band_chance)
+                return
 
     async def whichchannel(self, message):
         await self.safe_send_message(message.channel, message.channel)
