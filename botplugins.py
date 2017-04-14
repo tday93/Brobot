@@ -30,10 +30,11 @@ class BotPlugins(object):
                 "!addquote": self.addquote,
                 "!getquote": self.getquote,
                 "!add": self.adddjbrobot,
-                "!memeplease": self.memeplease
+                "!memeplease": self.memeplease,
+                "!delete":self.deleteself
 
                 }
-        self.band_chance = 20
+        self.band_chance = 10
 
     async def get_response(self,message):
 
@@ -48,7 +49,17 @@ class BotPlugins(object):
         await self.getfactoid(message)
         await self.getreaction(message)
 
+    def is_me(self, message):
+        return message.author == self.user
+
+    async def deleteself(self, message):
+        number = int(message.content.split(' ')[1])
+        await self.purge_from(message.channel, limit = number, check=is_me)
+
+
     async def bandnames(self, message):
+        if message.content.startswith("!") or message.content.startswith("*"):
+            return
         t = message.content.casefold()
         s = t.split(' ')
         print(s)
@@ -60,12 +71,12 @@ class BotPlugins(object):
             else:
                 i = random.randrange(0, self.band_chance)
                 print(i)
+                self.bands["band names"].append(s)
                 if i == 0:
                     msg = "https://{}{}{}.tumblr.com".format(s[0],s[1],s[2])
                     await self.safe_send_message(message.channel, msg)
-                    self.band_chance = 20
+                    self.band_chance = 10
                     return
-                self.bands["band names"].append(s)
                 self.band_chance = self.band_chance -1
                 print(self.band_chance)
                 return
@@ -120,6 +131,9 @@ class BotPlugins(object):
                     if 'original_size' in pic:
                         pic_list.append(pic['original_size']['url'])
 
+        if len(pic_list) < 1:
+            await self.safe_send_message(message.channel, "I'm sorry I couldn't find anything for the tag: {}".format(tag))
+            return
         meme = random.choice(pic_list)
         await self.safe_send_message(message.channel ,meme)
 

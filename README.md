@@ -13,4 +13,4 @@ quotes.json stores user quotes
 
 SECRETS.yaml is used to store various API keys
 
-There are also several pictures referenced that aren't stored here because I don't want to track down licenses for them. Find your own pictures of butter. 
+There are also several pictures referenced that aren't stored here because I don't want to track down licenses for them. Find your own pictures of butter.
