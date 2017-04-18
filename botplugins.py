@@ -35,10 +35,21 @@ class BotPlugins(object):
                 "!addtitle":self.add_job_title,
                 "!give": self.fill_pockets,
                 "!take":self.empty_pockets,
-                "!pockets":self.list_pockets
+                "!pockets":self.list_pockets,
+                "!addlib":self.addlib
 
                 }
         self.band_chance = 15
+
+    async def addlib(self, message):
+        s = message.content.split(' ', 2)
+        if s[1] not in self.miscdata["madlib"]:
+            await self.safe_send_message(message.channel, "I'm sorry thats not a category.... yet")
+            return
+        else:
+            self.miscdata["madlib"][s[1]].append(s[2])
+            msg = "Okay {}, {} added to {}".format(message.author.mention, s[2], s[1])
+            await self.safe_send_message(message.channel, msg)
 
     async def list_pockets(self, message):
         if len(self.miscdata["pockets"]) <1:
@@ -52,7 +63,7 @@ class BotPlugins(object):
     async def fill_pockets(self, message):
         item = message.content.split(' ', 1)[1]
         if len(self.miscdata["pockets"]) >= 5:
-            discarded = self.miscdata["pockets"].pop([0])
+            discarded = self.miscdata["pockets"].pop(0)
             self.miscdata["pockets"].append(item)
             msg = "Okay {}, I threw away my {} and took {}".format(message.author.mention, discarded, item)
             await self.safe_send_message(message.channel, msg)
@@ -73,7 +84,7 @@ class BotPlugins(object):
     async def add_job_title(self, message):
 
         title =  message.content.split(' ', 1)[1]
-        self.miscdata["jobtitles"].append(title)
+        self.miscdata["madlib"]["$job"].append(title)
         msg = 'Added "{}" to my list of job titles'.format(title)
         await self.safe_send_message(message.channel, msg)
 
@@ -244,23 +255,31 @@ class BotPlugins(object):
         t = message.content
         if t in self.fdb:
             r = random.choice(self.fdb[t])
-            if "$who" in r:
-                if message.author.nick != None:
-                    name = message.author.nick
-                else:
-                    name = message.author.name
-                r = r.replace("$who", name)
-            if "$someone" in r:
-                person = random.choice(list(message.server.members))
-                r = r.replace("$someone", person.mention)
-            if "$digit" in r:
-                r = r.replace("$digit", str(random.randrange(0, 9)))
-            if "$job" in r:
-                r = r.replace("$job", random.choice(self.miscdata["jobtitles"]))
-            if "$item" in r:
-                r = r.replace("$item", random.choice(self.miscdata["pockets"]))
-            await self.safe_send_message(message.channel, r)
 
+            s = [self.madlibword(message, word) for word in r.split(' ')]
+            t= " ".join(s)
+
+            await self.safe_send_message(message.channel, t)
+
+    def madlibword(self, message, stringIn):
+        self.madlib = self.miscdata["madlib"]
+        if stringIn == "$who":
+            if message.author.nick != None:
+                name = message.author.nick
+            else:
+                name = message.author.name
+            return name
+        if stringIn == "$someone":
+            person = random.choice(list(message.server.members))
+            return person.mention
+        if stringIn == "$digit":
+            return str(random.randrange(0, 9))
+        if "stringIn" == "$item":
+                return random.choice(self.miscdata["pockets"])
+        if stringIn in self.madlib:
+            return random.choice(self.madlib[stringIn])
+        else:
+            return stringIn
 
     async def addreaction(self, message):
         mods = ["cucksquad", "crunchwrap supreme", "prok"]
