@@ -31,10 +31,51 @@ class BotPlugins(object):
                 "!getquote": self.getquote,
                 "!add": self.adddjbrobot,
                 "!memeplease": self.memeplease,
-                "!delete":self.deleteself
+                "!delete":self.deleteself,
+                "!addtitle":self.add_job_title,
+                "!give": self.fill_pockets,
+                "!take":self.empty_pockets,
+                "!pockets":self.list_pockets
 
                 }
-        self.band_chance = 10
+        self.band_chance = 15
+
+    async def list_pockets(self, message):
+        if len(self.miscdata["pockets"]) <1:
+            await self.safe_send_message(message.channel, "My pockets are empty")
+            return
+        msg = "I have a "
+        for item in self.miscdata["pockets"]:
+            msg = msg + "{} and a ".format(item)
+        msg = msg[:-6]
+        await self.safe_send_message(message.channel, msg)
+    async def fill_pockets(self, message):
+        item = message.content.split(' ', 1)[1]
+        if len(self.miscdata["pockets"]) >= 5:
+            discarded = self.miscdata["pockets"].pop([0])
+            self.miscdata["pockets"].append(item)
+            msg = "Okay {}, I threw away my {} and took {}".format(message.author.mention, discarded, item)
+            await self.safe_send_message(message.channel, msg)
+        else:
+            self.miscdata["pockets"].append(item)
+            msg = "Thanks for the {}, {}".format(item, message.author.mention)
+            await self.safe_send_message(message.channel, msg)
+
+    async def empty_pockets(self, message):
+        if len(self.miscdata["pockets"]) <1:
+            await self.safe_send_message(message.channel, "My pockets seem to be empty")
+            return
+        item = random.choice(self.miscdata["pockets"])
+        self.miscdata["pockets"].remove(item)
+        msg = "Here {}, have a {}".format(message.author.mention, item)
+        await self.safe_send_message(message.channel, msg)
+
+    async def add_job_title(self, message):
+
+        title =  message.content.split(' ', 1)[1]
+        self.miscdata["jobtitles"].append(title)
+        msg = 'Added "{}" to my list of job titles'.format(title)
+        await self.safe_send_message(message.channel, msg)
 
     async def get_response(self,message):
 
@@ -61,7 +102,8 @@ class BotPlugins(object):
         if message.content.startswith("!") or message.content.startswith("*"):
             return
         t = message.content.casefold()
-        s = t.split(' ')
+        q = t.split(' ')
+        s = [re.sub(r'\W+', '', item) for item in q]
         print(s)
         print(len(s))
         if len(s) == 3:
@@ -75,7 +117,8 @@ class BotPlugins(object):
                 if i == 0:
                     msg = "https://{}{}{}.tumblr.com".format(s[0],s[1],s[2])
                     await self.safe_send_message(message.channel, msg)
-                    self.band_chance = 10
+                    self.bands["good band names"].append(s)
+                    self.band_chance = 15
                     return
                 self.band_chance = self.band_chance -1
                 print(self.band_chance)
@@ -152,7 +195,7 @@ class BotPlugins(object):
         user = message.mentions[0]
         if user.id not in self.qdb:
             self.qdb[user.id] = {"name":user.name, "discriminator":user.discriminator, "quotes": []}
-        query = message.content.split(' ', 2)[2]
+        query = message.content.split(' ', 2)[2].strip()
         quotes = []
         for message in self.messages:
             if message.author.id == user.id and message.content.startswith(query):
@@ -212,6 +255,10 @@ class BotPlugins(object):
                 r = r.replace("$someone", person.mention)
             if "$digit" in r:
                 r = r.replace("$digit", str(random.randrange(0, 9)))
+            if "$job" in r:
+                r = r.replace("$job", random.choice(self.miscdata["jobtitles"]))
+            if "$item" in r:
+                r = r.replace("$item", random.choice(self.miscdata["pockets"]))
             await self.safe_send_message(message.channel, r)
 
 
