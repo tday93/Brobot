@@ -5,11 +5,12 @@ import botplugins
 import urllib.request
 import yaml
 import atexit
+import time
+import json
 br = botplugins.BotPlugins
 
 
 class BroBot(discord.Client, br):
-
 
     def __init__(self):
         self.fdb = self.getjson("factoids.json")
@@ -46,6 +47,8 @@ class BroBot(discord.Client, br):
     async def safe_send_message(self, dest, content):
         msg = None
         try:
+            await self.send_typing(dest)
+            time.sleep(1)
             msg = await self.send_message(dest, content)
             return msg
         except:
@@ -66,6 +69,16 @@ class BroBot(discord.Client, br):
             return msg
         except:
             print("no way")
+
+    def writejson(self,path, jd):
+        with open(path, 'w') as outfile:
+            json.dump(jd, outfile, indent=2, sort_keys=True, separators=(',',':'))
+
+    def getjson(self, path):
+        with open(path) as fn:
+            jd = json.load(fn)
+        return jd
+
 
 
 with open("SECRETS.yaml", 'r') as filein:
