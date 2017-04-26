@@ -195,6 +195,12 @@ class BotPlugins(object):
                 msg = " ".join(s)
                 await self.safe_send_message(message.channel, msg)
     
+    async def goddamnit_eric(self, message):
+        if message.author.id == "299208991765037066":
+            chance = random.randint(1,20)
+            if chance ==1:
+                await self.safe_send_message(message.channel, "goddamnit eric")
+
     async def get_response(self, message):
 
         """
@@ -214,6 +220,7 @@ class BotPlugins(object):
         await self.regex_responses(message)
         await self.getfactoid(message)
         await self.getreaction(message)
+        await self.goddamnit_eric(message)
 
     def is_me(self, message):
         return message.author == self.user
