@@ -52,11 +52,11 @@ class BotPlugins(object):
                 "!addcat": self.addcat,
                 "!categories": self.madcats,
                 "!swearjar": self.swearjar,
-                "!addregex": self.add_regex
-
+                "!addregex": self.add_regex,
+                "!addwordsearch": self.add_wordsearch
                 }
         # the starting chance that he will mention something is a good band name
-        self.band_chance = 15
+        self.band_chance = 30
 
     async def madcats(self, message):
         """ Lists current vailable madlib catergories
@@ -74,6 +74,34 @@ class BotPlugins(object):
         msg = "There is {} in the swear jar".format(dollars)
         await self.safe_send_message(message.channel, msg)
 
+    async def wordsearch(self, message):
+        search_text = message.content.casefold().split(' ')
+        for k,v in self.miscdata['wordsearch'].items():
+            if k in search_text:
+                response = random.choice(v)
+                msg_list = response.split(" ")
+                madlib_list = [self.madlibword(message, item) for item in msg_list]
+                msg = " ".join(madlib_list)
+                await self.safe_send_message(message.channel, msg)
+
+    async def add_wordsearch(self, message):
+        msg_list = message.content.split(' ',2)
+        if len(msg_list) != 3:
+            msg = "I'm sorry but I don't understand"
+            await self.safe_send_message(message.channel, msg)
+            return
+        trigger = msg_list[1].casefold()
+        factoid = msg_list[2]
+        if trigger in self.miscdata['wordsearch']:
+            self.miscdata['wordsearch'][trigger].append(factoid)
+            msg = "Okay {}, I'll repond with {} when I see \"{}\"".format(
+                message.author.mention, factoid, trigger)
+        else:
+            self.miscdata['wordsearch'][trigger] = [factoid]
+            msg = "Okay {}, I'll repond with {} when I see \"{}\"".format(
+                message.author.mention, factoid, trigger)
+        await self.safe_send_message(message.channel, msg)
+        
     async def addlib(self, message):
         """
         Adds a give word to a given madlib category with format
@@ -197,7 +225,7 @@ class BotPlugins(object):
     
     async def goddamnit_eric(self, message):
         if message.author.id == "299208991765037066":
-            chance = random.randint(1,20)
+            chance = random.randint(1,50)
             if chance ==1:
                 await self.safe_send_message(message.channel, "goddamnit eric")
 
@@ -210,18 +238,26 @@ class BotPlugins(object):
             3. checks for regex matches
             4. checks for factoids
         """
-        await self.bandnames(message)
-        first = message.content.split(' ')[0]
-        if message.content in self.commands:
-            await self.commands[message.content](message)
+        try:
+            await self.bandnames(message)
+            first = message.content.split(' ')[0]
+            if message.content in self.commands:
+                await self.commands[message.content](message)
 
-        elif first in self.commands:
-            await self.commands[first](message)
-        await self.regex_responses(message)
-        await self.getfactoid(message)
-        await self.getreaction(message)
-        await self.goddamnit_eric(message)
-
+            elif first in self.commands:
+                await self.commands[first](message)
+            await self.regex_responses(message)
+            await self.getfactoid(message)
+            await self.getreaction(message)
+            await self.wordsearch(message)
+            await self.goddamnit_eric(message)
+        except Exception as inst:
+            print((type(inst)))
+            print(inst.args)
+            print(inst)
+            await self.guru_meditation(message, inst.args) 
+            
+            
     def is_me(self, message):
         return message.author == self.user
 
@@ -231,7 +267,7 @@ class BotPlugins(object):
         mainly used in case of accidental NSFW content
         """
         number = int(message.content.split(' ')[1])
-        await self.purge_from(message.channel, limit=number, check=is_me)
+        await self.purge_from(message.channel, limit=number, check=self.is_me)
 
     async def bandnames(self, message):
         """
@@ -258,7 +294,7 @@ class BotPlugins(object):
                     msg = "https://{}{}{}.tumblr.com".format(s[0], s[1], s[2])
                     await self.safe_send_message(message.channel, msg)
                     self.bands["good band names"].append(s)
-                    self.band_chance = 15
+                    self.band_chance = 30
                     return
                 self.band_chance = self.band_chance - 1
                 print(self.band_chance)
@@ -427,6 +463,7 @@ class BotPlugins(object):
                 await self.safe_send_message(message.channel, msg)
 
     def madlibword(self, message, stringIn):
+        
         """
         looks for madlib categories associated with the supplied word and swaps 
         them out as necessary

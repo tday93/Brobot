@@ -70,6 +70,10 @@ class BroBot(discord.Client, br):
         except:
             print("no way")
 
+    async def guru_meditation(self, message, error):
+        await self.safe_send_file(message.channel, "Guru_meditation.gif")
+        await self.safe_send_message(message.channel, error)
+        
     def writejson(self,path, jd):
         with open(path, 'w') as outfile:
             json.dump(jd, outfile, indent=2, sort_keys=True, separators=(',',':'))
