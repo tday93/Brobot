@@ -11,10 +11,11 @@ with open("SECRETS.yaml", "r") as filein:
 
 tumblr_api_key = secrets['tumblrapi']
 
-""" 
+"""
 This is the dark pit i threw all of the chat bots plugins into.
 
-The client object inherits everything from this object, and everything should be
+The client object inherits everything from this object,
+and everything should be
 in the same scope.
 """
 
@@ -25,11 +26,12 @@ class BotPlugins(object):
 
         """
         This is a mapping of commands given in chat to functions in this class.
-        Really anything should work but know that each message will check for 
+        Really anything should work but know that each message will check for
         both == any of the below keys, or startswith() any of the below keys
 
 
-        Shorter is better than long, anything not matching "!<something>" should
+        Shorter is better than long,
+        anything not matching "!<something>" should
         be there for either a good reason or a good joke
         """
         self.logger = logging.getLogger("brobotlog")
@@ -56,7 +58,7 @@ class BotPlugins(object):
                 "!addregex": self.add_regex,
                 "!addwordsearch": self.add_wordsearch
                 }
-        # the starting chance that he will mention something is a good band name
+    # the starting chance that he will mention something is a good band name
         self.band_chance = 30
 
     async def madcats(self, message):
@@ -70,23 +72,24 @@ class BotPlugins(object):
         await self.safe_send_message(message.channel, msg)
 
     async def swearjar(self, message):
-        dollas =float(self.miscdata["swearjar"]) / 100
+        dollas = float(self.miscdata["swearjar"]) / 100
         dollars = "${:,.2f}".format(dollas)
         msg = "There is {} in the swear jar".format(dollars)
         await self.safe_send_message(message.channel, msg)
 
     async def wordsearch(self, message):
         search_text = message.content.casefold().split(' ')
-        for k,v in self.miscdata['wordsearch'].items():
+        for k, v in self.miscdata['wordsearch'].items():
             if k in search_text:
                 response = random.choice(v)
                 msg_list = response.split(" ")
-                madlib_list = [self.madlibword(message, item) for item in msg_list]
+                madlib_list = [self.madlibword(message, item)
+                               for item in msg_list]
                 msg = " ".join(madlib_list)
                 await self.safe_send_message(message.channel, msg)
 
     async def add_wordsearch(self, message):
-        msg_list = message.content.split(' ',2)
+        msg_list = message.content.split(' ', 2)
         if len(msg_list) != 3:
             msg = "I'm sorry but I don't understand"
             await self.safe_send_message(message.channel, msg)
@@ -102,7 +105,7 @@ class BotPlugins(object):
             msg = "Okay {}, I'll repond with {} when I see \"{}\"".format(
                 message.author.mention, factoid, trigger)
         await self.safe_send_message(message.channel, msg)
-        
+
     async def addlib(self, message):
         """
         Adds a give word to a given madlib category with format
@@ -110,33 +113,37 @@ class BotPlugins(object):
         """
         s = message.content.split(' ', 2)
         if s[1] not in self.miscdata["madlib"]:
-            await self.safe_send_message(message.channel, "I'm sorry thats not a category.... yet")
+            await self.safe_send_message(
+                message.channel, "I'm sorry thats not a category.... yet")
             return
         else:
             self.miscdata["madlib"][s[1]].append(s[2])
-            msg = "Okay {}, {} added to {}".format(message.author.mention, s[2], s[1])
+            msg = "Okay {}, {} added to {}".format(
+                message.author.mention, s[2], s[1])
             await self.safe_send_message(message.channel, msg)
 
     async def addcat(self, message):
         """
-        Adds a category to the madlib categories 
+        Adds a category to the madlib categories
         Currently will only allow me to do this
         """
         if message.author.id != "204378458393018368":
-            await self.safe_send_message(message.channel, 
+            await self.safe_send_message(message.channel,
                                          "I'm sorry but I can't do that Dave")
         else:
             cat = message.content.split(' ')[1]
             if cat[0] != "$":
-                await self.safe_send_message(message.channel, 
-                                             "The category should start with $")
+                await self.safe_send_message(
+                    message.channel,
+                    "The category should start with $")
                 return
             if cat not in self.miscdata["madlib"]:
                 self.miscdata["madlib"][cat] = []
-                await self.safe_send_message(message.channel, 
-                                             "{} madlib category added".format(cat))
+                await self.safe_send_message(
+                    message.channel,
+                    "{} madlib category added".format(cat))
             else:
-                await self.safe_send_message(message.channel, 
+                await self.safe_send_message(message.channel,
                                              "That category already exists")
 
     async def list_pockets(self, message):
@@ -144,7 +151,8 @@ class BotPlugins(object):
         Lists what are in his poeckts
         """
         if len(self.miscdata["pockets"]) < 1:
-            await self.safe_send_message(message.channel, "My pockets are empty")
+            await self.safe_send_message(message.channel,
+                                         "My pockets are empty")
             return
         msg = "I have "
         for item in self.miscdata["pockets"]:
@@ -175,7 +183,8 @@ class BotPlugins(object):
         who asked
         """
         if len(self.miscdata["pockets"]) < 1:
-            await self.safe_send_message(message.channel, "My pockets seem to be empty")
+            await self.safe_send_message(message.channel,
+                                         "My pockets seem to be empty")
             return
         item = random.choice(self.miscdata["pockets"])
         self.miscdata["pockets"].remove(item)
@@ -195,7 +204,7 @@ class BotPlugins(object):
     async def add_regex(self, message):
         """
         lets me and only me add regex responses
-        had to restrict this to just myself because otherwise this is 
+        had to restrict this to just myself because otherwise this is
         DANGEROUS
         """
         if message.author.id != "204378458393018368":
@@ -204,7 +213,8 @@ class BotPlugins(object):
             return
         split_message = message.content.split(" ", 2)
         if len(split_message) != 3:
-            await self.safe_send_message(message.channel, "Something went wrong")
+            await self.safe_send_message(
+                 message.channel, "Something went wrong")
             return
         reg_trigger = split_message[1]
         reg_factoid = split_message[2]
@@ -212,9 +222,7 @@ class BotPlugins(object):
             self.miscdata["regices"][reg_trigger] = []
         self.miscdata["regices"][reg_trigger].append(reg_factoid)
         msg = "Okay $who, I'll repond to a message matching {} with {}".format(
-                                                                    reg_trigger,
-                                                                    reg_factoid
-                                                                    )
+            reg_trigger, reg_factoid)
         await self.safe_send_message(message.channel, msg)
 
     async def regex_responses(self, message):
@@ -223,21 +231,22 @@ class BotPlugins(object):
             pattern = re.compile(k)
             if pattern.match(message.content):
                 response = random.choice(v)
-                
-                s = [self.madlibword(message, word) for word in response.split(' ')]
+
+                s = [self.madlibword(message, word)
+                     for word in response.split(' ')]
                 msg = " ".join(s)
                 await self.safe_send_message(message.channel, msg)
-    
+
     async def goddamnit_eric(self, message):
         if message.author.id == "299208991765037066":
-            chance = random.randint(1,50)
-            if chance ==1:
+            chance = random.randint(1, 50)
+            if chance == 1:
                 await self.safe_send_message(message.channel, "goddamnit eric")
 
     async def get_response(self, message):
 
         """
-        Core routing function. 
+        Core routing function.
             1. checks for band name
             2. checks for commands
             3. checks for regex matches
@@ -260,15 +269,14 @@ class BotPlugins(object):
             self.logger.error((type(inst)))
             self.logger.error(inst.args)
             self.logger.error(inst)
-            await self.guru_meditation(message, inst.args) 
-            
-            
+            await self.guru_meditation(message, inst.args)
+
     def is_me(self, message):
         return message.author == self.user
 
     async def deleteself(self, message):
         """
-        deletes his own messages, 
+        deletes his own messages,
         mainly used in case of accidental NSFW content
         """
         number = int(message.content.split(' ')[1])
@@ -314,15 +322,18 @@ class BotPlugins(object):
         for role in message.author.roles:
             roles.append(role.name)
         if len(set(roles).intersection(mods)) < 1:
-            await self.safe_send_message(message.channel, "I can't let you do that dave")
+            await self.safe_send_message(message.channel,
+                                         "I can't let you do that dave")
             return
         link = message.content.split(' ')[1]
         with open("DJBROBOT/MusicBot/config/autoplaylist.txt", "a") as f:
             f.write(link + "\n")
 
     async def smut(self, message):
-        if str(message.channel) !="general":
-            msg = subprocess.run(['python', '/home/tday/projects/chatbots/markov.py'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+        if str(message.channel) != "general":
+            msg = subprocess.run(['python',
+                                  '/home/tday/projects/chatbots/markov.py'],
+                                 stdout=subprocess.PIPE).stdout.decode('utf-8')
             await self.safe_send_message(message.channel, msg)
         else:
             await self.safe_send_message(message.channel, "Not in here buddy")
@@ -332,9 +343,11 @@ class BotPlugins(object):
         finds a stupid picture of scotty from star trek and posts it
         mostly a single-case example of the memeplease function
         """
-        r = requests.get('https://api.tumblr.com/v2/tagged?tag=scotty&api_key={0}'.format(tumblr_api_key))
+        url = 'https://api.tumblr.com/v2/tagged?tag=scotty&api_key={0}'.format(
+                                                            tumblr_api_key)
+        r = requests.get(url)
         scottydict = r.json()
-        pic_list= []
+        pic_list = []
         for item in scottydict['response']:
             if item['type'] == 'photo':
                 for pic in item['photos']:
@@ -348,21 +361,25 @@ class BotPlugins(object):
         searches tumblr and occasionally google images for a picture using
         a provided string, and posts it into chat.
         """
-        tag = message.content.split(' ',1)[1]
-        r = requests.get('https://api.tumblr.com/v2/tagged?tag={}&api_key={}'.format(tag, tumblr_api_key))
+        tag = message.content.split(' ', 1)[1]
+        r = requests.get(
+            'https://api.tumblr.com/v2/tagged?tag={}&api_key={}'.format(
+                tag, tumblr_api_key))
         memedict = r.json()
-        pic_list=[]
+        pic_list = []
         for item in memedict['response']:
             if item['type'] == 'photo':
                 for pic in item['photos']:
                     if 'original_size' in pic:
                         pic_list.append(pic['original_size']['url'])
-        
+
         if len(pic_list) < 5:
             g_images = googleimages.get_images(tag)
             pic_list = pic_list + g_images
         if len(pic_list) < 1:
-            await self.safe_send_message(message.channel, "I'm sorry I couldn't find anything for the tag: {}".format(tag))
+
+            msg = "I'm sorry I couldn't find anything for the tag: {}".format(tag)
+            await self.safe_send_message(message.channel, msg)
             return
         meme = random.choice(pic_list)
         await self.safe_send_message(message.channel, meme)
@@ -382,22 +399,26 @@ class BotPlugins(object):
         format is "!addquote @user <exact start of message>"
         """
         if len(message.mentions) != 1:
-            await self.safe_send_message(message.channel, 
+            await self.safe_send_message(message.channel,
                                          'I can only quote one user at once')
         user = message.mentions[0]
         if user.id not in self.qdb:
-            self.qdb[user.id] = {"name": user.name, "discriminator": user.discriminator, "quotes": []}
+            self.qdb[user.id] = {"name": user.name,
+                                 "discriminator": user.discriminator,
+                                 "quotes": []}
         query = message.content.split(' ', 2)[2].strip()
         quotes = []
         for message in self.messages:
-            if message.author.id == user.id and message.content.startswith(query):
+            if (message.author.id == user.id
+                    and message.content.startswith(query)):
+
                 quotes.append(message)
         if len(quotes) != 1:
-            await self.safe_send_message(message.channel, 
+            await self.safe_send_message(message.channel,
                                          "You'll have to be more specific")
         self.qdb[user.id]["quotes"].append(quotes[0].content)
 
-        await self.safe_send_message(message.channel, 
+        await self.safe_send_message(message.channel,
                                      'Quoted {} saying: "{}"'.format(
                                          user.mention, quotes[0].content))
 
@@ -406,12 +427,13 @@ class BotPlugins(object):
         returns a random quote from a given user
         """
         if len(message.mentions) != 1:
-            await self.safe_send_message(message.channel,
-                                "I can only retrieve quotes from one user at a time")
+            await self.safe_send_message(
+                message.channel,
+                "I can only retrieve quotes from one user at a time")
         user = message.mentions[0]
         if user.id not in self.qdb:
-            await self.safe_send_message(message.channel,
-                                "I don't have any quotes from that user.")
+            await self.safe_send_message(
+                message.channel, "I don't have any quotes from that user.")
         quotes = self.qdb[user.id]["quotes"]
         quote = random.choice(quotes)
         msg = '{} said: "{}"'.format(user.mention, quote)
@@ -426,21 +448,22 @@ class BotPlugins(object):
         t = message.content.split(' ', 1)[1].split("<is>")
         trigger = t[0].strip()
         factoid = t[1].strip()
-        if len(trigger) <1 or len(factoid) <1:
-            return self.safe_send_message(message.channel, "I dont understand that")
+        if len(trigger) < 1 or len(factoid) < 1:
+            return self.safe_send_message(
+                message.channel, "I dont understand that")
 
         if trigger in self.fdb:
             existing = self.fdb[trigger]
             if type(existing) is str:
                 l = [existing, factoid]
                 self.fdb[trigger] = l
-
             else:
                 self.fdb[trigger].append(factoid)
         else:
             self.fdb[trigger] = []
             self.fdb[trigger].append(factoid)
-        msg = "Okay {}, {} is {}".format(message.author.mention, trigger, factoid)
+        msg = "Okay {}, {} is {}".format(
+            message.author.mention, trigger, factoid)
         await self.safe_send_message(message.channel, msg)
 
     async def getfactoid(self, message):
@@ -465,9 +488,9 @@ class BotPlugins(object):
                 await self.safe_send_message(message.channel, msg)
 
     def madlibword(self, message, stringIn):
-        
+
         """
-        looks for madlib categories associated with the supplied word and swaps 
+        looks for madlib categories associated with the supplied word and swaps
         them out as necessary
         """
         self.madlib = self.miscdata["madlib"]
@@ -475,7 +498,7 @@ class BotPlugins(object):
             self.miscdata["swearjar"] = self.miscdata["swearjar"] + 25
             return ""
         if stringIn.startswith("$who"):
-            if message.author.nick != None:
+            if message.author.nick is not None:
                 name = message.author.nick
             else:
                 name = message.author.name
@@ -487,7 +510,7 @@ class BotPlugins(object):
             return str(random.randrange(0, 9))
         if stringIn.startswith("$item"):
                 return random.choice(self.miscdata["pockets"])
-        for k,v in self.madlib.items():
+        for k, v in self.madlib.items():
             if stringIn.startswith(k):
                 return random.choice(v)
         else:
@@ -495,22 +518,25 @@ class BotPlugins(object):
 
     async def addreaction(self, message):
         """
-        similar to add factoide but responds with a discord reaction rather than
+        similar to add factoide but responds
+        with a discord reaction rather than
         a message
         """
         mods = ["cucksquad", "crunchwrap supreme", "prok"]
         roles = []
         for role in message.author.roles:
             roles.append(role.name)
-        if  len(set(roles).intersection(mods)) <1 :
-            await self.safe_send_message(message.channel, "I can't let you do that dave")
+        if len(set(roles).intersection(mods)) < 1:
+            await self.safe_send_message(
+                message.channel, "I can't let you do that dave")
             return
 
         t = message.content.split(' ', 1)[1]
 
         tl = t.split('<is>')
         if len(tl) != 2:
-            await self.safe_send_message(message.channel, "Something went wrong")
+            await self.safe_send_message(
+                message.channel, "Something went wrong")
 
         trigger = tl[0].strip()
         factoid = tl[1].strip()
