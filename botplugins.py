@@ -4,6 +4,7 @@ import requests
 import re
 import yaml
 import googleimages
+import logging
 
 with open("SECRETS.yaml", "r") as filein:
     secrets = yaml.load(filein)
@@ -31,7 +32,7 @@ class BotPlugins(object):
         Shorter is better than long, anything not matching "!<something>" should
         be there for either a good reason or a good joke
         """
-
+        self.logger = logging.getLogger("brobotlog")
         self.commands = {
                 "!channel": self.whichchannel,
                 "!add": self.adddjbrobot,
@@ -192,7 +193,11 @@ class BotPlugins(object):
         await self.safe_send_message(message.channel, msg)
 
     async def add_regex(self, message):
-        
+        """
+        lets me and only me add regex responses
+        had to restrict this to just myself because otherwise this is 
+        DANGEROUS
+        """
         if message.author.id != "204378458393018368":
             msg = "I'm sorry but I can't do that Dave"
             await self.safe_send_message(message.channel, msg)
@@ -252,9 +257,9 @@ class BotPlugins(object):
             await self.wordsearch(message)
             await self.goddamnit_eric(message)
         except Exception as inst:
-            print((type(inst)))
-            print(inst.args)
-            print(inst)
+            self.logger.error((type(inst)))
+            self.logger.error(inst.args)
+            self.logger.error(inst)
             await self.guru_meditation(message, inst.args) 
             
             
@@ -280,15 +285,12 @@ class BotPlugins(object):
         t = message.content.casefold()
         q = t.split(' ')
         s = [re.sub(r'\W+', '', item) for item in q]
-        print(s)
-        print(len(s))
         if len(s) == 3:
             if s in self.bands['band names']:
-                print("this already exists, skipping")
+                self.logger.info("this already exists, skipping")
                 return
             else:
                 i = random.randrange(0, self.band_chance)
-                print(i)
                 self.bands["band names"].append(s)
                 if i == 0:
                     msg = "https://{}{}{}.tumblr.com".format(s[0], s[1], s[2])
@@ -297,7 +299,6 @@ class BotPlugins(object):
                     self.band_chance = 30
                     return
                 self.band_chance = self.band_chance - 1
-                print(self.band_chance)
                 return
 
     async def whichchannel(self, message):
@@ -312,8 +313,6 @@ class BotPlugins(object):
         roles = []
         for role in message.author.roles:
             roles.append(role.name)
-        print(roles)
-        print(message.content)
         if len(set(roles).intersection(mods)) < 1:
             await self.safe_send_message(message.channel, "I can't let you do that dave")
             return
@@ -383,7 +382,8 @@ class BotPlugins(object):
         format is "!addquote @user <exact start of message>"
         """
         if len(message.mentions) != 1:
-            await self.safe_send_message(message.channel, 'I can only quote one user at once')
+            await self.safe_send_message(message.channel, 
+                                         'I can only quote one user at once')
         user = message.mentions[0]
         if user.id not in self.qdb:
             self.qdb[user.id] = {"name": user.name, "discriminator": user.discriminator, "quotes": []}
@@ -393,16 +393,18 @@ class BotPlugins(object):
             if message.author.id == user.id and message.content.startswith(query):
                 quotes.append(message)
         if len(quotes) != 1:
-            await self.safe_send_message(message.channel, "You'll have to be more specific")
+            await self.safe_send_message(message.channel, 
+                                         "You'll have to be more specific")
         self.qdb[user.id]["quotes"].append(quotes[0].content)
 
-        await self.safe_send_message(message.channel, 'Quoted {} saying: "{}"'.format(user.mention, quotes[0].content))
+        await self.safe_send_message(message.channel, 
+                                     'Quoted {} saying: "{}"'.format(
+                                         user.mention, quotes[0].content))
 
     async def getquote(self, message):
         """
         returns a random quote from a given user
         """
-        print(self.qdb)
         if len(message.mentions) != 1:
             await self.safe_send_message(message.channel,
                                 "I can only retrieve quotes from one user at a time")
@@ -507,7 +509,6 @@ class BotPlugins(object):
         t = message.content.split(' ', 1)[1]
 
         tl = t.split('<is>')
-        print(tl)
         if len(tl) != 2:
             await self.safe_send_message(message.channel, "Something went wrong")
 

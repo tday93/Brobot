@@ -1,18 +1,49 @@
 import discord
+import argparse
+import logging
 import asyncio
-import subprocess
 import botplugins
-import urllib.request
 import yaml
 import atexit
 import time
 import json
+import sys
+
 br = botplugins.BotPlugins
+
+# argparse setup for commandline args
+parser = argparse.ArgumentParser()
+parser.add_argument("-l", "--loglevel",
+                    help="Choose logging level: DEBUG INFO WARNING ERROR CRITICAL",
+                    default="DEBUG",
+                    choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+parser.add_argument("-f", "--filename",
+                    help="file to log to, defualt is 'brobot.log'",
+                    default="brobot.log")
+args = parser.parse_args()
+
+
+# setup logging
+logger = logging.getLogger("brobotlog")
+formatter = logging.Formatter(fmt='%(asctime)s %(message)s',
+                              datefmt='%m/%d/%Y %I:%M:%S %p')
+logger.setLevel(logging.DEBUG)
+# file handler for logging
+fh = logging.FileHandler(args.filename)
+fh.setLevel("DEBUG")
+# console handler for logging
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(args.loglevel)
+ch.setFormatter(formatter)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
+logger.addHandler(ch)
 
 
 class BroBot(discord.Client, br):
 
     def __init__(self):
+        self.logger = logging.getLogger("brobotlog")
         self.fdb = self.getjson("factoids.json")
         self.qdb = self.getjson("quotes.json")
         self.rdb = self.getjson("reactions.json")
@@ -22,7 +53,7 @@ class BroBot(discord.Client, br):
         super().__init__()
 
     def cleanup(self):
-        print("cleaning up")
+        self.logger.info("cleaning up")
         self.writejson("factoids.json", self.fdb)
         self.writejson("reactions.json", self.rdb)
         self.writejson("quotes.json", self.qdb)
@@ -30,30 +61,28 @@ class BroBot(discord.Client, br):
         self.writejson("miscdata.json", self.miscdata)
 
     async def on_ready(self):
-        print("logged in as")
-        print(self.user.name)
-        print(self.user.id)
-        print('-------')
+        self.logger.info("logged in as")
+        self.logger.info(self.user.name)
+        self.logger.info(self.user.id)
+        self.logger.info('-------')
 
-    async def on_message(self,message, num = 10):
+    async def on_message(self, message, num=10):
 
-        print(message.content)
         if message.author == self.user:
             return
-
+        self.logger.info("Received message: '{}'".format(message.content))
         await self.get_response(message)
-
 
     async def safe_send_message(self, dest, content):
         msg = None
         try:
             await self.send_typing(dest)
             time.sleep(1)
+            self.logger.info("Sending '{}' to {}".format(content, str(dest)))
             msg = await self.send_message(dest, content)
             return msg
         except:
-            print("nope")
-
+            self.logger.info("nope")
 
     async def safe_send_file(self, dest, content):
         msg = None
@@ -61,37 +90,35 @@ class BroBot(discord.Client, br):
             msg = await self.send_file(dest, content)
             return msg
         except:
-            print("Nada")
+            self.logger.info("Nada")
 
     async def safe_add_reaction(self, message, content):
         try:
             msg = await self.add_reaction(message, content)
             return msg
         except:
-            print("no way")
+            self.logger.info("no way")
 
     async def guru_meditation(self, message, error):
         await self.safe_send_file(message.channel, "Guru_meditation.gif")
         await self.safe_send_message(message.channel, error)
-        
-    def writejson(self,path, jd):
+
+    def writejson(self, path, jd):
         with open(path, 'w') as outfile:
-            json.dump(jd, outfile, indent=2, sort_keys=True, separators=(',',':'))
+            json.dump(jd, outfile, indent=2, sort_keys=True, separators=(',', ':'))
 
     def getjson(self, path):
         with open(path) as fn:
             jd = json.load(fn)
         return jd
 
-
-
+# open secrets file for API token and start the bot
 with open("SECRETS.yaml", 'r') as filein:
     secrets = yaml.load(filein)
 bot = BroBot()
 bot.run(secrets["token"])
 
+# make sure things get saved to file
 @atexit.register
 def save_stuff():
     bot.cleanup()
-
-
