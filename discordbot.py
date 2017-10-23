@@ -1,6 +1,7 @@
 import discord
 import argparse
 import logging
+import random
 import asyncio
 import botplugins
 import yaml
@@ -8,6 +9,7 @@ import atexit
 import time
 import json
 import sys
+import zalgo
 
 br = botplugins.BotPlugins
 
@@ -78,11 +80,22 @@ class BroBot(discord.Client, br):
         try:
             await self.send_typing(dest)
             time.sleep(1)
+            if random.randint(0, 200) == 69:
+                content = zalgo.main(content, "NEAR")
+            if random.randint(0, 200) == 66:
+                content = self.fork_it_up(content)
             self.logger.info("Sending '{}' to {}".format(content, str(dest)))
             msg = await self.send_message(dest, content)
             return msg
         except:
             self.logger.info("nope")
+
+    def fork_it_up(self, message):
+        swaps = [("fuck", "fork"), ("shit", "shirt"), ("ass", "ash")]
+        for item in swaps:
+            if item[0] in message:
+                message.replace(item[0], item[1])
+        return message
 
     async def safe_send_file(self, dest, content):
         msg = None
@@ -112,11 +125,13 @@ class BroBot(discord.Client, br):
             jd = json.load(fn)
         return jd
 
+
 # open secrets file for API token and start the bot
 with open("SECRETS.yaml", 'r') as filein:
     secrets = yaml.load(filein)
 bot = BroBot()
 bot.run(secrets["token"])
+
 
 # make sure things get saved to file
 @atexit.register

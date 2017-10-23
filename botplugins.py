@@ -1,10 +1,12 @@
 import subprocess
 import random
 import requests
+from bs4 import BeautifulSoup
 import re
 import yaml
 import googleimages
 import logging
+import zalgo
 
 with open("SECRETS.yaml", "r") as filein:
     secrets = yaml.load(filein)
@@ -56,17 +58,43 @@ class BotPlugins(object):
                 "!categories": self.madcats,
                 "!swearjar": self.swearjar,
                 "!addregex": self.add_regex,
-                "!addwordsearch": self.add_wordsearch
+                "!addwordsearch": self.add_wordsearch,
+                "!zalgo": self.zalgo_text,
+                "!retro": self.retro_text
                 }
     # the starting chance that he will mention something is a good band name
         self.band_chance = 30
 
+    async def retro_text(self, message):
+        sp_text = message.content.split(" ", 1)[1]
+        s_text = sp_text.split("/")
+        print(s_text)
+        txt1 = s_text[0]
+        txt2 = s_text[1]
+        txt3 = s_text[2]
+        payload = {"bcg": 5, "txt": 4, "text1": txt1,
+                   "text2": txt2, "text3": txt3}
+        r = requests.post(
+            "https://m.photofunia.com/categories/all_effects/retro-wave",
+            data=payload)
+        c = r.content
+        soup = BeautifulSoup(c)
+        div = soup.find_all("div", {"class": "image full-height-container"})[0]
+        img_url = div.find_all("img")[0].get('src')
+        await self.safe_send_message(message.channel, img_url)
+
+
+
+    async def zalgo_text(self, message):
+        text = message.content.split(" ", 1)[1]
+        zalgo_text = zalgo.main(text, "NEAR")
+        await self.safe_send_message(message.channel, zalgo_text)
+
     async def madcats(self, message):
-        """ Lists current vailable madlib catergories
         """
-        cats = []
-        for k, v in self.miscdata["madlib"].items():
-            cats.append(k)
+        Lists current available madlib catergories
+        """
+        cats = [k for k, v in self.miscdata["madlib"].items()]
         s_cats = " ".join(cats)
         msg = "My current madlib categories are: {}".format(s_cats)
         await self.safe_send_message(message.channel, msg)
@@ -253,7 +281,7 @@ class BotPlugins(object):
             4. checks for factoids
         """
         try:
-            await self.bandnames(message)
+            # await self.bandnames(message)
             first = message.content.split(' ')[0]
             if message.content in self.commands:
                 await self.commands[message.content](message)
@@ -444,9 +472,12 @@ class BotPlugins(object):
         Adds a given factoid to his database. format is:
             !brobot [trigger] <is> [factoid]
         """
-
+        if "sandwich" in message.content.casefold():
+            sand_msg = "I am strictly sandwich neutral."
+            await self.safe_send_message(message.channel, sand_msg)
+            return
         t = message.content.split(' ', 1)[1].split("<is>")
-        trigger = t[0].strip()
+        trigger = t[0].strip() 
         factoid = t[1].strip()
         if len(trigger) < 1 or len(factoid) < 1:
             return self.safe_send_message(
