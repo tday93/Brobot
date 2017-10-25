@@ -83,8 +83,6 @@ class BotPlugins(object):
         img_url = div.find_all("img")[0].get('src')
         await self.safe_send_message(message.channel, img_url)
 
-
-
     async def zalgo_text(self, message):
         text = message.content.split(" ", 1)[1]
         zalgo_text = zalgo.main(text, "NEAR")
@@ -235,20 +233,28 @@ class BotPlugins(object):
         had to restrict this to just myself because otherwise this is
         DANGEROUS
         """
+        # check to see if the user adding a regex is tday
         if message.author.id != "204378458393018368":
             msg = "I'm sorry but I can't do that Dave"
             await self.safe_send_message(message.channel, msg)
             return
-        split_message = message.content.split(" ", 2)
-        if len(split_message) != 3:
+
+        # get message minus !addregex command
+        base_message = message.content[9:]
+        # split message on "~~~" everything before is regex, everything after
+        # is response
+        split_message = base_message.split("~~~", 1)
+        if len(split_message) != 2:
             await self.safe_send_message(
                  message.channel, "Something went wrong")
             return
-        reg_trigger = split_message[1]
-        reg_factoid = split_message[2]
+
+        reg_trigger = split_message[0]
+        reg_factoid = split_message[1]
         if reg_trigger not in self.miscdata["regices"]:
             self.miscdata["regices"][reg_trigger] = []
         self.miscdata["regices"][reg_trigger].append(reg_factoid)
+
         msg = "Okay $who, I'll repond to a message matching {} with {}".format(
             reg_trigger, reg_factoid)
         await self.safe_send_message(message.channel, msg)
@@ -257,7 +263,7 @@ class BotPlugins(object):
         regices = self.miscdata["regices"]
         for k, v in regices.items():
             pattern = re.compile(k)
-            if pattern.match(message.content):
+            if pattern.search(message.content) is not None:
                 response = random.choice(v)
 
                 s = [self.madlibword(message, word)
@@ -406,7 +412,8 @@ class BotPlugins(object):
             pic_list = pic_list + g_images
         if len(pic_list) < 1:
 
-            msg = "I'm sorry I couldn't find anything for the tag: {}".format(tag)
+            msg = ("I'm sorry I couldn't "
+                   "find anything for the tag: {}").format(tag)
             await self.safe_send_message(message.channel, msg)
             return
         meme = random.choice(pic_list)
@@ -477,7 +484,11 @@ class BotPlugins(object):
             await self.safe_send_message(message.channel, sand_msg)
             return
         t = message.content.split(' ', 1)[1].split("<is>")
-        trigger = t[0].strip() 
+        if len(t) <= 1:
+            await self.safe_send_message(
+                message.channel, "Syntax Error: No <is>")
+            return
+        trigger = t[0].strip()
         factoid = t[1].strip()
         if len(trigger) < 1 or len(factoid) < 1:
             return self.safe_send_message(
