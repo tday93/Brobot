@@ -6,17 +6,21 @@ import yaml
 import atexit
 import time
 import json
+import praw
 import sys
 import zalgo
 import requests
 from bs4 import BeautifulSoup
 import re
 import googleimages
+from brobot_errors import CantDoThatDave
 
 with open("SECRETS.yaml", "r") as filein:
     secrets = yaml.load(filein)
 
 tumblr_api_key = secrets['tumblrapi']
+reddit_id = secrets['redditid']
+reddit_secret = secrets['redditsecret']
 
 # argparse setup for commandline args
 parser = argparse.ArgumentParser()
@@ -56,10 +60,15 @@ class BroBot(discord.Client):
         self.qdb = self.getjson("quotes.json")
         self.bands = self.getjson("bands.json")
         self.miscdata = self.getjson("miscdata.json")
+        self.madlib = self.miscdata["madlib"]
+        self.reddit = praw.Reddit(client_id=reddit_id,
+                                  client_secret=reddit_secret,
+                                  user_agent="brobot")
         self.commands = {
                 "!channel": self.whichchannel,
                 "sfw sasuke": self.sasuke,
                 "!brobot": self.add_factoid,
+                "!addfactoid": self.add_factoid,
                 "!brobotreact": self.add_factoid,
                 "!addquote": self.addquote,
                 "!getquote": self.getquote,
@@ -73,16 +82,15 @@ class BroBot(discord.Client):
                 "!categories": self.madcats,
                 "!swearjar": self.swearjar,
                 "!addregex": self.add_factoid,
-                "!addwordsearch": self.add_factoid,
+                "!wordsearch": self.add_factoid,
                 "!zalgo": self.zalgo_text,
+                "!lastfactoid": self.lastfactoid,
+                "!deletefactoid": self.deletefactoid,
+                "!searchfactoid": self.searchfactoid,
+                "!findfactoid": self.findfactoid,
                 "!retro": self.retro_text
                 }
 
-        self.matching_functions = {
-            "fullstring": self.fullstring_match,
-            "substring": self.substring_match,
-            "regex": self.regex_match
-        }
         # the starting chance that he
         # will mention something is a good band name
         self.band_chance = 80
@@ -110,6 +118,8 @@ class BroBot(discord.Client):
 
     async def safe_send_message(self, dest, content):
         msg = None
+        if len(content) == 0:
+            return
         try:
             await self.send_typing(dest)
             time.sleep(1)
@@ -165,8 +175,16 @@ class BroBot(discord.Client):
             # prepare factoid data
             trigger, response = self.split_factoid(message.content,
                                                    "!wordsearch")
-            await self.add_to_fdb(message, trigger, response,
-                                  "substring", "text")
+            if "$***" in msg_txt:
+                # regex
+                trigger, response = self.split_factoid(message.content,
+                                                       "!wordsearch")
+                trigger = self.prep_regex(trigger)
+                await self.add_to_fdb(message, trigger, response,
+                                      "regex", "text")
+            else:
+                await self.add_to_fdb(message, trigger, response,
+                                      "substring", "text")
 
         elif msg_txt.startswith("!addreaction"):
             # reactions
@@ -194,18 +212,20 @@ class BroBot(discord.Client):
                 # fulltext
                 trigger, response = self.split_factoid(message.content,
                                                        "!brobot")
+                trigger = "^" + re.escape(trigger) + "$"
                 await self.add_to_fdb(message, trigger, response,
                                       "fullstring", "text")
 
     async def add_to_fdb(self, message, trigger, response,
                          trigger_type, response_type):
-
+        f_id = self.miscdata["next_factoid_id"]
         factoid = {"trigger_type": trigger_type,
                    "response_type": response_type,
                    "trigger": trigger, "response": response,
-                   "user": message.author.id}
+                   "user": message.author.id, "factoid_id": f_id}
 
         self.fdb.append(factoid)
+        self.miscdata["next_factoid_id"] += 1
 
         msg = "Okay {}, \"{}\" is \"{}\"".format(
             message.author.mention, trigger, response)
@@ -227,41 +247,23 @@ class BroBot(discord.Client):
         return prepped_trigger
 
     async def check_factoid(self, message):
-        """
-        1. fullstring
-        2. substring
-        3. regex
-        """
         possible_responses = []
+
         for factoid in self.fdb:
-            if self.matching_functions[factoid["trigger_type"]](factoid,
-                                                                message):
-                possible_responses.append(factoid)
+            regex_match = re.search(factoid["trigger"], message.content)
+            if regex_match is not None:
+                # we include the match object in case we need any possible
+                # match groups later
+                possible_responses.append([factoid, regex_match])
+
         if len(possible_responses) >= 1:
+
             chosen_factoid = random.choice(possible_responses)
-            # also different response types!
-            # madlib stuff still!
+            response_txt = await self.response_parse(message, chosen_factoid)
+
             # send messages here
             await self.safe_send_message(message.channel,
-                                         chosen_factoid["response"])
-
-    def fullstring_match(self, factoid, message):
-        if factoid["trigger"] == message.content:
-            return True
-        else:
-            return False
-
-    def substring_match(self, factoid, message):
-        if factoid["trigger"] in message.content:
-            return True
-        else:
-            return False
-
-    def regex_match(self, factoid, message):
-        if re.search(factoid["trigger"], message.content) is not None:
-            return True
-        else:
-            return False
+                                         response_txt)
 
     # NEW SHIT HAS ENDED RIGHT HERE
 
@@ -279,6 +281,9 @@ class BroBot(discord.Client):
             if item[0] in message:
                 message.replace(item[0], item[1])
         return message
+
+    def add_to_swearjar(self):
+        self.miscdata["swearjar"] += 25
 
     async def whichchannel(self, message):
         await self.safe_send_message(message.channel, message.channel)
@@ -322,6 +327,9 @@ class BroBot(discord.Client):
                 await self.commands[first](message)
 
             await self.goddamnit_eric(message)
+        except CantDoThatDave as cdtd:
+            await self.safe_send_message(cdtd.d_message.channel,
+                                         "I'm sorry but I can't do that Dave")
 
         except Exception as inst:
             self.logger.error((type(inst)))
@@ -434,8 +442,7 @@ class BroBot(discord.Client):
         Currently will only allow me to do this
         """
         if message.author.id != "204378458393018368":
-            await self.safe_send_message(message.channel,
-                                         "I'm sorry but I can't do that Dave")
+            raise CantDoThatDave(message)
         else:
             cat = message.content.split(' ')[1]
             if cat[0] != "$":
@@ -503,6 +510,16 @@ class BroBot(discord.Client):
         await self.safe_add_reaction(msg, "😍")
         await self.safe_add_reaction(msg, "👌")
 
+    async def silence_fillers(self, message):
+        possible_thoughts = [submission.title for submission in
+                             self.reddit.subreddit(
+                                 "showerthoughts").hot(limit=30)
+                             if submission.title
+                             not in self.miscdata["silence_fillers"]]
+        msg = random.choice(possible_thoughts)
+        self.miscdata["silence_fillers"].append(msg)
+        await self.safe_send_message(message.channel, msg)
+
     async def memeplease(self, message):
         """
         searches tumblr and occasionally google images for a picture using
@@ -535,14 +552,73 @@ class BroBot(discord.Client):
     """ Passive functions. Each message is passed to these to look for various
         conditions. Brobot may then respond. """
 
-    async def barequote(self, message):
-        return
-        """
-        if len(message.mentions) != 1:
+    async def lastfactoid(self, message):
+        if message.author.id != "204378458393018368":
             return
-        if len(message.content) == (len(message.mentions[0].id) + 4):
-            await self.getquote(message)
-        """
+        last_factoid = max(self.fdb, key=lambda x: x["factoid_id"])
+        msg_txt = ("Factoid ID: {factoid_id}\n"
+                   + "Trigger: {trigger}\n"
+                   + "Response: {response}\n"
+                   + "Author ID: {user}\n").format(**last_factoid)
+        await self.safe_send_message(message.channel, msg_txt)
+
+    async def findfactoid(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        factoid_id = int(message.content.split(" ", 1)[1])
+        find_factoid_list = [factoid for factoid in self.fdb
+                             if factoid["factoid_id"] == factoid_id]
+        if len(find_factoid_list) != 1:
+            await self.safe_send_message(message.channel,
+                                         ("Either no match or too"
+                                          + " many matches for that ID"))
+            return
+        find_factoid = find_factoid_list[0]
+        msg_txt = ("Factoid ID: {factoid_id}\n"
+                   + "Trigger: {trigger}\n"
+                   + "Response: {response}\n"
+                   + "Author ID: {user}\n").format(**find_factoid)
+        await self.safe_send_message(message.channel, msg_txt)
+
+    async def searchfactoid(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        response_search_string = message.content.split(" ", 1)[1].strip()
+        trigger_search_string = re.escape(response_search_string)
+
+        found_factoids = [factoid for factoid in self.fdb
+                          if response_search_string in factoid["response"]
+                          or trigger_search_string in factoid["trigger"]]
+        await self.safe_send_message(message.channel,
+                                     "I found the following factoids:")
+        for factoid in found_factoids:
+            msg_txt = ("Factoid ID: {factoid_id}\n"
+                       + "Trigger: {trigger}\n"
+                       + "Response: {response}\n"
+                       + "Author ID: {user}\n").format(**factoid)
+
+            await self.safe_send_message(message.channel, msg_txt)
+
+    async def deletefactoid(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        factoid_id = int(message.content.split(" ", 1)[1])
+        find_factoid_list = [factoid for factoid in self.fdb
+                             if factoid["factoid_id"] == factoid_id]
+        if len(find_factoid_list) != 1:
+            await self.safe_send_message(
+                message.channel, ("Either no match or too"
+                                  + "many matches for that ID"))
+            return
+        find_factoid = find_factoid_list[0]
+        msg_txt = ("Deleting this factoid:\n"
+                   + "Factoid ID: {factoid_id}\n"
+                   + "Trigger: {trigger}\n"
+                   + "Response: {response}\n"
+                   + "Author ID: {user}\n").format(**find_factoid)
+
+        await self.safe_send_message(message.channel, msg_txt)
+        self.fdb.remove(find_factoid)
 
     async def goddamnit_eric(self, message):
         if message.author.id == "299208991765037066":
@@ -573,34 +649,65 @@ class BroBot(discord.Client):
                         s[0], s[1], s[2])
                     await self.safe_send_message(message.channel, msg)
                     self.bands["good band names"].append(s)
-                    self.band_chance = 30
+                    self.band_chance = 80
                     return
                 self.band_chance = self.band_chance - 1
                 return
 
-    def madlibword(self, message, stringIn):
+    async def response_parse(self, message, chosen_factoid):
+        """
+            takes a chosen factoid and runs through any
+            keywords in that factoid, returns the reponse
+            plaintext to the check factoid function
+        """
+        # simple functions
+        simple_funcs = {
+            "$digit": lambda x: random.randrange(0, 9),
+            "$nonzero": lambda x: random.randrange(1, 9),
+            "$someone": lambda x: random.choice(list(
+                x.server.members)).mention,
+            "$item": lambda x: random.choice(self.miscdata["pockets"]),
+            "$who": lambda x: x.author.nick or x.author.name,
+            "$swearjar": lambda x: self.add_to_swearjar()
+        }
+        response_txt = chosen_factoid[0]["response"]
+        match_obj = chosen_factoid[1]
+        split_txt = response_txt.split()
+        split_response = []
+        for word in split_txt:
+            # dealing with the corner case of italicized messages
+            if word.startswith("*$"):
+                word = word[1:]
+                if word[-1] in ["!", ".", ",", "?", ";"]:
+                    word = word[0:-1]
+            if word in simple_funcs:
+                new_word = simple_funcs[word](message)
+            else:
+                new_word = await self.madlibword(message, word, match_obj)
+            if new_word is not None:
+                split_response.append(new_word)
+
+        return " ".join(split_response)
+
+    async def madlibword(self, message, stringIn, reg_match_obj):
 
         """
         looks for madlib categories associated with the supplied word and swaps
         them out as necessary
         """
-        self.madlib = self.miscdata["madlib"]
-        if stringIn.startswith("$swearjar"):
-            self.miscdata["swearjar"] = self.miscdata["swearjar"] + 25
-            return ""
-        if stringIn.startswith("$who"):
-            if message.author.nick is not None:
-                name = message.author.nick
+        # showerthoughts from reddit
+        if stringIn.startswith("$thought"):
+            await self.silence_fillers(message)
+            return None
+        # wildcard group matching
+        if stringIn.startswith("$["):
+            if not stringIn.endswith("]"):
+                word_end = stringIn.split("]")[1]
             else:
-                name = message.author.name
-            return name
-        if stringIn.startswith("$someone"):
-            person = random.choice(list(message.server.members))
-            return person.mention
-        if stringIn.startswith("$digit"):
-            return str(random.randrange(0, 9))
-        if stringIn.startswith("$item"):
-                return random.choice(self.miscdata["pockets"])
+                word_end = ""
+            match_index = int(stringIn[2])
+            return reg_match_obj.group(match_index) + word_end
+        # madlib categories
         for k, v in self.madlib.items():
             if stringIn.startswith(k):
                 return random.choice(v)
