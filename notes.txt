@@ -1,0 +1,7 @@
+ARCHITECTURE YO
+
+Ideas:
+  split discord interaction from text processing
+  text processing:
+    split input/output?
+
