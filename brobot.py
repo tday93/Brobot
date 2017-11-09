@@ -4,6 +4,7 @@ import praw
 import zalgo
 import asyncio
 import requests
+import keywords as kw
 from bs4 import BeautifulSoup
 import re
 import googleimages
@@ -34,6 +35,7 @@ class BroBotCore:
         self.reddit = praw.Reddit(client_id=reddit_id,
                                   client_secret=reddit_secret,
                                   user_agent="brobot")
+        self.keywords = self.get_keywords()
         self.commands = {
                 "!channel": self.whichchannel,
                 "sfw sasuke": self.sasuke,
@@ -109,18 +111,25 @@ class BroBotCore:
             3. add factoid to database
             4. acknowledge addition
         """
-        msg_txt = message.content.casefold()
+        msg_txt = message.content
 
         # determine factoid type
-        if msg_txt.startswith("!wordsearch"):
+        if msg_txt.startswith("!addregex"):
+            # user_regex
+            trigger, response = self.split_factoid(message.content,
+                                                   "!addregex")
+            await self.add_to_fdb(message, trigger, response,
+                                  "regex", "text")
+
+        elif msg_txt.startswith("!wordsearch"):
             # substring
             # prepare factoid data
             trigger, response = self.split_factoid(message.content,
                                                    "!wordsearch")
             if "$***" in msg_txt:
                 # regex
-                trigger, response = self.split_factoid(message.content,
-                                                       "!wordsearch")
+                trigger, response = self.split_factoid(
+                    message.content.casefold(), "!wordsearch")
                 trigger = self.prep_regex(trigger)
                 await self.add_to_fdb(message, trigger, response,
                                       "regex", "text")
@@ -145,8 +154,8 @@ class BroBotCore:
             # either fullstring or regex
             if "$***" in msg_txt:
                 # regex
-                trigger, response = self.split_factoid(message.content,
-                                                       "!brobot")
+                trigger, response = self.split_factoid(
+                    message.content, "!brobot")
                 trigger = self.prep_regex(trigger)
                 await self.add_to_fdb(message, trigger, response,
                                       "regex", "text")
@@ -179,7 +188,7 @@ class BroBotCore:
         if len(t) != 2:
             print("ERROR, ERROR")
         else:
-            trigger = t[0].strip().casefold()
+            trigger = t[0].strip()
             response = t[1].strip()
             return trigger, response
 
@@ -207,7 +216,7 @@ class BroBotCore:
         if len(possible_responses) >= 1:
 
             chosen_factoid = random.choice(possible_responses)
-            response_txt = await self.response_parse(message, chosen_factoid)
+            response_txt = await self.better_parse(message, chosen_factoid)
 
             # send messages here
             await self.discord_client.safe_send_message(
@@ -587,53 +596,27 @@ class BroBotCore:
                 self.band_chance = self.band_chance - 1
                 return
 
-    async def response_parse(self, message, chosen_factoid):
-        """
-            takes a chosen factoid and runs through any
-            keywords in that factoid, returns the reponse
-            plaintext to the check factoid function
-        """
-        # simple functions
+    def get_keywords(self):
+        # special keywords firs
+        key_objs = [
+            kw.Digit(self, "$digit"),
+            kw.NonZero(self, "$nonzero"),
+            kw.Someone(self, "$someone"),
+            kw.Who(self, "$who"),
+            kw.Swearjar(self, "$swearjar"),
+            kw.Thought(self, "$though"),
+            kw.Wildcard(self, "$wildcard")
+        ]
+        for key in self.madlib:
+            key_objs.append(kw.Keyword(self, key))
+        return key_objs
+
+    async def better_parse(self, message, chosen_factoid):
         response_txt = chosen_factoid[0]["response"]
         match_obj = chosen_factoid[1]
-        split_txt = response_txt.split()
-        split_response = []
-        for word in split_txt:
-            # dealing with the corner case of italicized messages
-            if word.startswith("*$"):
-                word = word[1:]
-                if word[-1] in ["!", ".", ",", "?", ";"]:
-                    word = word[0:-1]
-            if word in hf_dict:
-                new_word = hf_dict[word](message)
-            else:
-                new_word = await self.madlibword(message, word, match_obj)
-            if new_word is not None:
-                split_response.append(new_word)
-
-        return " ".join(split_response)
-
-    async def madlibword(self, message, stringIn, reg_match_obj):
-
-        """
-        looks for madlib categories associated with the supplied word and swaps
-        them out as necessary
-        """
-        # showerthoughts from reddit
-        if stringIn.startswith("$thought"):
-            await self.silence_fillers(message)
-            return None
-        # wildcard group matching
-        if stringIn.startswith("$["):
-            if not stringIn.endswith("]"):
-                word_end = stringIn.split("]")[1]
-            else:
-                word_end = ""
-            match_index = int(stringIn[2])
-            return reg_match_obj.group(match_index) + word_end
-        # madlib categories
-        for k, v in self.madlib.items():
-            if stringIn.startswith(k):
-                return random.choice(v)
-        else:
-            return stringIn
+        for keyword in self.keywords:
+            if keyword.match(response_txt) is not None:
+                response_txt = await keyword.transform(response_txt,
+                                                       message, match_obj)
+                self.logger.debug(response_txt)
+        return response_txt
