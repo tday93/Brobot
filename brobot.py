@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup
 import re
 import googleimages
 from brobot_errors import CantDoThatDave
-from helper_functions import hf_dict
 
 
 with open("data/SECRETS.yaml", "r") as filein:
@@ -29,6 +28,8 @@ class BroBotCore:
         self.fdb = self.dh.fdb
         self.qdb = self.dh.qdb
         self.bands = self.dh.bands
+        self.permissions = self.dh.permissions
+        self.messages = []
         self.guru_meditation = self.discord_client.guru_meditation
         self.miscdata = self.dh.miscdata
         self.madlib = self.miscdata["madlib"]
@@ -39,6 +40,8 @@ class BroBotCore:
         self.commands = {
                 "!channel": self.whichchannel,
                 "sfw sasuke": self.sasuke,
+                "!removepermission": self.remove_permission,
+                "!addpermission": self.add_permission,
                 "!brobot": self.add_factoid,
                 "!addfactoid": self.add_factoid,
                 "!brobotreact": self.add_factoid,
@@ -86,12 +89,17 @@ class BroBotCore:
             first = message.content.split(' ')[0]
 
             if message.content in self.commands:
-                await self.commands[message.content](message)
+                if await self.permissions_check(message.content,
+                                                message.author.id, message):
+                    await self.commands[message.content](message)
 
             elif first in self.commands:
-                await self.commands[first](message)
+                if await self.permissions_check(first, message.author.id,
+                                                message):
+                    await self.commands[first](message)
 
             await self.goddamnit_eric(message)
+            self.messages.append(message)
         except CantDoThatDave as cdtd:
             await self.discord_client.safe_send_message(
                 cdtd.d_message.channel, "I'm sorry but I can't do that Dave")
@@ -102,7 +110,36 @@ class BroBotCore:
             self.logger.error(inst)
             await self.guru_meditation(message, inst.args)
 
-    # NEW SHIT IS GOING RIGHT HERE
+    async def permissions_check(self, cmd_trigger, userid, message):
+        if userid in self.permissions:
+            if cmd_trigger in self.permissions[userid]["blacklist"]:
+                raise CantDoThatDave(message)
+            else:
+                return True
+        else:
+            self.permissions[userid] = {"whitelist": [], "blacklist": []}
+            return True
+
+    async def remove_permission(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        else:
+            user = message.mentions[0]
+            if user.id not in self.permissions:
+                self.permissions[user.id] = {"whitelist": [], "blacklist": []}
+            cmd = message.content.split()[2]
+            self.permissions[user.id]["blacklist"].append(cmd)
+
+    async def add_permission(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        else:
+            user = message.mentions[0]
+            if user.id not in self.permissions:
+                self.permissions[user.id] = {"whitelist": [], "blacklist": []}
+            cmd = message.content.split()[2]
+            if cmd in self.permissions[user.id]["blacklist"]:
+                self.permissions[user.id]["blacklist"].remove(cmd)
 
     async def add_factoid(self, message):
         """
@@ -228,7 +265,6 @@ class BroBotCore:
 
     # NEW SHIT HAS ENDED RIGHT HERE
 
-    """ Utility functions """
     def is_me(self, message):
         return message.author == self.discord_client.user
 
@@ -250,8 +286,6 @@ class BroBotCore:
         """
         number = int(message.content.split(' ')[1])
         await self.purge_from(message.channel, limit=number, check=self.is_me)
-
-    """ Active commands """
 
     async def manquote(self, message):
         s = self.strip_command(message.content, "!manquote")
@@ -445,9 +479,9 @@ class BroBotCore:
     async def sasuke(self, message):
         msg = await self.discord_client.safe_send_file(
             message.channel, 'images/SFWSASUKE.png')
-        await self.safe_add_reaction(msg, "💯")
-        await self.safe_add_reaction(msg, "😍")
-        await self.safe_add_reaction(msg, "👌")
+        await self.discord_client.safe_add_reaction(msg, "💯")
+        await self.discord_client.safe_add_reaction(msg, "😍")
+        await self.discord_client.safe_add_reaction(msg, "👌")
 
     async def silence_fillers(self, message):
         possible_thoughts = [submission.title for submission in
@@ -603,8 +637,10 @@ class BroBotCore:
             kw.NonZero(self, "$nonzero"),
             kw.Someone(self, "$someone"),
             kw.Who(self, "$who"),
+            kw.Item(self, "$item"),
+            kw.FakeBible(self, "$bible"),
             kw.Swearjar(self, "$swearjar"),
-            kw.Thought(self, "$though"),
+            kw.Thought(self, "$thought"),
             kw.Wildcard(self, "$wildcard")
         ]
         for key in self.madlib:
@@ -615,7 +651,8 @@ class BroBotCore:
         response_txt = chosen_factoid[0]["response"]
         match_obj = chosen_factoid[1]
         for keyword in self.keywords:
-            if keyword.match(response_txt) is not None:
+            if keyword.match(response_txt):
+                self.logger.debug("Match for {}".format(keyword.name))
                 response_txt = await keyword.transform(response_txt,
                                                        message, match_obj)
                 self.logger.debug(response_txt)

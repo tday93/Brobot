@@ -1,5 +1,7 @@
 import re
+import markovify
 from random import choice, randint
+from book_names import name_chain
 
 
 class Keyword:
@@ -15,7 +17,7 @@ class Keyword:
         return re.sub(self.pattern, new_word, response_txt)
 
     def match(self, response_txt):
-        self.bot.logger.debug("Trying keyword: {}".format(self.name))
+        self.bot.logger.debug("Trying pattern: {}".format(self.pattern))
         if re.search(self.pattern, response_txt) is not None:
             return True
         else:
@@ -58,6 +60,26 @@ class Swearjar(Keyword):
         return response_txt
 
 
+class FakeBible(Keyword):
+
+    def __init__(self, bot, name, pattern=None, wordbucket=None):
+        self.bible_model = get_markov_model("bible.txt")
+        super().__init__(bot, name, pattern=pattern, wordbucket=wordbucket)
+
+    async def transform(self, response_txt, message, match_obj):
+        response_txt = await self.bible_verse()
+        return response_txt
+
+    async def bible_verse(self):
+        raw_verse = self.bible_model.make_sentence().split(" ", 1)
+        chap_verse = raw_verse[0].split(":")
+        verse_text = re.sub("\\d+:\\d+", "", raw_verse[1])
+        book = "".join(name_chain.walk()).capitalize()
+        msg = 'From the book of {}, Chapter {}, Verse {}: \n"{}"'.format(
+            book, chap_verse[0], chap_verse[1], verse_text)
+        return msg
+
+
 class Thought(Keyword):
 
     async def transform(self, response_txt, message, match_obj):
@@ -81,18 +103,32 @@ class Wildcard(Keyword):
 
     async def transform(self, response_txt, message, match_obj):
         key_matches = re.findall(self.pattern, response_txt)
-        print(key_matches)
+        self.bot.logger.debug("{}".format(key_matches))
         km_tuples = {(item, int(item[2:-1])) for item in key_matches}
         for item in km_tuples:
-            response_txt = response_txt.replace(item[0], match_obj[item[1]])
+            self.bot.logger.debug("{}".format(item))
+            new_word = ""
+            try:
+                self.bot.logger.debug("IN TRY BLOCK")
+                new_word = match_obj.group(item[1])
+                response_txt = response_txt.replace(item[0], new_word)
+            except TypeError:
+                self.bot.logger.debug("IN EXCEPTION")
+                new_word = ""
+                response_txt = response_txt.replace(item[0], new_word)
         return response_txt
 
 
-"""
-def item(message, bot_instance=None):
-    return random.choice(bot_instance.miscdata["pockets"])
+class Item(Keyword):
+
+    async def transform(self, response_txt, message, match_obj):
+        item = choice(self.bot.miscdata["pockets"])
+        return re.sub(self.pattern, item, response_txt)
 
 
-def swearjar(message, bot_instance=None):
-    return bot_instance.add_to_swearjar()
-"""
+def get_markov_model(path):
+    with open(path) as f:
+        text = f.read()
+
+    text_model = markovify.Text(text)
+    return text_model
