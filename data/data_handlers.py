@@ -10,12 +10,13 @@ class DataHandler:
         self.miscdata = self.getjson("data/miscdata.json")
         self.permissions = self.getjson("data/permissions.json")
 
-    def cleanup(self):
+    def cleanup(self, *args, **kwargs):
         self.writejson("data/factoid_db.json", self.fdb)
         self.writejson("data/quotes.json", self.qdb)
         self.writejson("data/bands.json", self.bands)
         self.writejson("data/miscdata.json", self.miscdata)
         self.writejson("data/permissions.json", self.permissions)
+        return
 
     def writejson(self, path, jd):
         with open(path, 'w') as outfile:

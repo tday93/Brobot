@@ -1,9 +1,12 @@
+#!/usr/bin/python
 import discord
 import argparse
 import logging
 import random
 import yaml
 import atexit
+import asyncio
+from signal import SIGINT, SIGTERM, SIGABRT
 import time
 import sys
 import zalgo
@@ -31,6 +34,11 @@ class BroBotClient(discord.Client):
             return
         self.logger.info("Received message: '{}'".format(message.content))
         await self.brobot_core.get_response(message)
+
+    async def on_reaction_add(self, reaction, user):
+        self.logger.info("Received reaction: {}".format(reaction.emoji))
+        # if user != self.user:
+        await self.brobot_core.handle_reaction(reaction, user)
 
     async def safe_send_message(self, dest, content):
         msg = None
@@ -69,6 +77,11 @@ class BroBotClient(discord.Client):
                                   "images/Guru_meditation.gif")
         await self.safe_send_message(message.channel, error)
 
+    async def clean_shutdown(self, *args, **kwargs):
+        self.brobot_core.dh.cleanup()
+        await self.logout()
+        return
+
 
 # argparse setup for commandline args
 parser = argparse.ArgumentParser()
@@ -104,6 +117,12 @@ with open("data/SECRETS.yaml", 'r') as filein:
     secrets = yaml.load(filein)
 data_handler = DataHandler()
 bot = BroBotClient(data_handler)
+
+for sig in (SIGTERM, SIGABRT, SIGINT):
+    bot.loop.add_signal_handler(
+        sig, lambda: asyncio.ensure_future(bot.clean_shutdown()))
+    # signal(sig, bot.clean_shutdown)
+
 bot.run(secrets["token"])
 
 

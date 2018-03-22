@@ -5,6 +5,7 @@ import zalgo
 import asyncio
 import requests
 import keywords as kw
+from decimal import Decimal
 from bs4 import BeautifulSoup
 import re
 import googleimages
@@ -49,6 +50,7 @@ class BroBotCore:
                 "!getquote": self.getquote,
                 "!manquote": self.manquote,
                 "!memeplease": self.memeplease,
+                "!shop": self.buy_item,
                 "!delete": self.deleteself,
                 "!give": self.fill_pockets,
                 "!take": self.empty_pockets,
@@ -66,10 +68,12 @@ class BroBotCore:
                 "!findfactoid": self.findfactoid,
                 "!retro": self.retro_text
                 }
+        self.response_cache = {}
 
         # the starting chance that he
         # will mention something is a good band name
         self.band_chance = 80
+        self.response_chance_padding = 0
 
     async def get_response(self, message):
 
@@ -109,6 +113,33 @@ class BroBotCore:
             self.logger.error(inst.args)
             self.logger.error(inst)
             await self.guru_meditation(message, inst.args)
+
+    async def handle_reaction(self, reaction, user):
+        self.logger.error("Recieved reaction: {}".format(reaction.emoji))
+        self.logger.info("message id: {}".format(reaction.message.id))
+        if reaction.message.id in self.response_cache:
+            f_id = self.response_cache[reaction.message.id]
+            self.logger.info("Factoid ID: {}".format(f_id))
+            if str(reaction.emoji) == "👍":
+                self.logger.info("Thumbs up")
+                await self.factoid_chance(f_id, 1)
+            elif str(reaction.emoji) == "👎":
+                self.logger.info("Thumbs down")
+                await self.factoid_chance(f_id, -1)
+        return
+
+    async def factoid_chance(self, factoid_id, chance_delta):
+        self.logger.info("Factoid ID: {}".format(factoid_id))
+        self.logger.info("chance delta: {}".format(chance_delta))
+        factoid = [f for f in self.fdb if f["factoid_id"] == factoid_id][0]
+        self.logger.info("Factoid: {}".format(factoid))
+        new_trigger_chance = factoid["trigger_chance"] + chance_delta
+        self.logger.info("new trigger chance = {}".format(new_trigger_chance))
+        if new_trigger_chance < 0:
+            new_trigger_chance = 0
+        elif new_trigger_chance > 100:
+            new_trigger_chance = 100
+        factoid["trigger_chance"] = new_trigger_chance
 
     async def permissions_check(self, cmd_trigger, userid, message):
         if userid in self.permissions:
@@ -208,6 +239,7 @@ class BroBotCore:
                          trigger_type, response_type):
         f_id = self.miscdata["next_factoid_id"]
         factoid = {"trigger_type": trigger_type,
+                   "trigger_chance": 100,
                    "response_type": response_type,
                    "trigger": trigger, "response": response,
                    "user": message.author.id, "factoid_id": f_id}
@@ -252,12 +284,23 @@ class BroBotCore:
 
         if len(possible_responses) >= 1:
 
-            chosen_factoid = random.choice(possible_responses)
-            response_txt = await self.better_parse(message, chosen_factoid)
+            # select if factoid will be displayed based on weighting
+            n = random.randrange(0, 100) - self.response_chance_padding
+            final_factoids = [r for r in possible_responses
+                              if r[0]["trigger_chance"] >= n]
+            if len(final_factoids) <= 0:
+                self.response_chance_padding += 5
+            elif len(final_factoids) >= 1:
+                # choose factoid to be displayed
+                c_factoid = random.choice(final_factoids)
+                response_txt = await self.better_parse(message, c_factoid)
 
-            # send messages here
-            await self.discord_client.safe_send_message(
-                message.channel, response_txt)
+                # send messages here
+                msg = await self.discord_client.safe_send_message(
+                    message.channel, response_txt)
+                self.logger.info("adding to cache: {}, {}".format(
+                    msg.id, c_factoid[0]["factoid_id"]))
+                self.response_cache[msg.id] = c_factoid[0]["factoid_id"]
 
     async def reg_match(self, trigger, msg_txt):
         match = re.search(trigger, msg_txt)
@@ -375,6 +418,49 @@ class BroBotCore:
         zalgo_text = zalgo.main(text, "NEAR")
         await self.discord_client.safe_send_message(
             message.channel, zalgo_text)
+
+    async def buy_item(self, message):
+        budget = self.miscdata["swearjar"]
+        item = await self.find_from_craigslist(budget)
+        if item is not None:
+            self.miscdata["swearjar"] -= item["price"]
+            if self.miscdata["swearjar"] < 0:
+                self.miscdata["swearjar"] = 0
+            if len(self.miscdata["pockets"]) >= 5:
+                discarded = self.miscdata["pockets"].pop(0)
+                self.miscdata["pockets"].append(item["name"])
+                msg = "Okay {}, I threw out my {} and bought {}, from {}".format(
+                    message.author.mention, discarded, item["name"], item["link"])
+                await self.discord_client.safe_send_message(message.channel, msg)
+            else:
+                self.miscdata["pockets"].append(item)
+                msg = "I bought {} from {}".format(item["name"], item["price"])
+                await self.discord_client.safe_send_message(message.channel, msg)
+        else:
+            msg = "I couldn't find anything I could afford"
+            await self.discord_client.safe_send_message(message.channel, msg)
+
+    async def find_from_craigslist(self, budget):
+        r = requests.get("https://losangeles.craigslist.org/d/for-sale/search/sss")
+        print(r.status_code)
+        soup = BeautifulSoup(r.content, "html5lib")
+        all_items = soup.findAll("li", "result-row")
+        items_formatted = []
+        for item in all_items:
+            price = None
+            prices = item.findAll("span", "result-price")
+            if prices:
+                price = str(prices[0].contents)
+                value = Decimal(re.sub(r'[^\d.]', '', price)) * 100
+                if value < budget:
+                    f_item = {
+                        "name": item.p.a.contents,
+                        "price": value,
+                        "link": item.a["href"]
+                    }
+                    items_formatted.append(f_item)
+
+        return random.choice(items_formatted)
 
     async def madcats(self, message):
         """
