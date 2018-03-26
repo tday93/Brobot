@@ -47,6 +47,8 @@ class BroBotClient(discord.Client):
         try:
             await self.send_typing(dest)
             time.sleep(1)
+            if random.randint(0, 100) == 1:
+                content = "Bananas!"
             if random.randint(0, 200) == 69:
                 content = zalgo.main(content, "NEAR")
             if random.randint(0, 200) == 66:

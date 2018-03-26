@@ -4,10 +4,11 @@ import praw
 import zalgo
 import asyncio
 import requests
+import re
 import keywords as kw
 from decimal import Decimal
 from bs4 import BeautifulSoup
-import re
+import helper_functions as hf
 import googleimages
 from brobot_errors import CantDoThatDave
 
@@ -31,6 +32,7 @@ class BroBotCore:
         self.bands = self.dh.bands
         self.permissions = self.dh.permissions
         self.messages = []
+        self.haiku = 0
         self.guru_meditation = self.discord_client.guru_meditation
         self.miscdata = self.dh.miscdata
         self.madlib = self.miscdata["madlib"]
@@ -42,6 +44,8 @@ class BroBotCore:
                 "!channel": self.whichchannel,
                 "sfw sasuke": self.sasuke,
                 "!removepermission": self.remove_permission,
+                "!inspect": self.inspect,
+                "!syllables": self.check_syllables,
                 "!addpermission": self.add_permission,
                 "!brobot": self.add_factoid,
                 "!addfactoid": self.add_factoid,
@@ -87,6 +91,7 @@ class BroBotCore:
             4. checks for factoids
         """
         try:
+            await self.check_haiku(message)
             await self.check_factoid(message)
             await self.bandnames(message)
 
@@ -113,6 +118,51 @@ class BroBotCore:
             self.logger.error(inst.args)
             self.logger.error(inst)
             await self.guru_meditation(message, inst.args)
+
+    async def inspect(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        else:
+            var = message.content.split(" ", 1)[1]
+            try:
+                msg = repr(getattr(self, var))
+                if len(msg) > 32:
+                    msg = "Value too long to send"
+                await self.discord_client.safe_send_message(message.channel, msg)
+            except:
+                return
+
+    async def check_haiku(self, message):
+
+            syls = hf.syllable_count(message.content)
+            if syls == 5:
+                if self.haiku == 0:
+                    self.haiku == 1
+                    self.logger.info("First haiku line")
+                    return
+                elif self.haiku == 2:
+                    await self.discord_client.safe_send_message(message.channel, "A Haiku!")
+                    self.haiku = 0
+                    return
+                else:
+                    self.haiku = 0
+            elif syls == 7:
+                self.logger.info("Seven syllables!, self.haiku={}".format(self.haiku))
+                if self.haiku == 1:
+                    self.haiku = 2
+                    self.logger.info("Second haiku line!")
+                    return
+                else:
+                    self.haiku = 0
+            else:
+                self.logger.info("Syls = {}, haiku cleared".format(syls))
+                self.haiku = 0
+
+    async def check_syllables(self, message):
+        txt = message.content.split(" ", 1)[1]
+        syls = hf.syllable_count(txt)
+        msg = "There are {} syllables in that phrase".format(syls)
+        await self.discord_client.safe_send_message(message.channel, msg)
 
     async def handle_reaction(self, reaction, user):
         self.logger.error("Recieved reaction: {}".format(reaction.emoji))
@@ -180,19 +230,27 @@ class BroBotCore:
             4. acknowledge addition
         """
         msg_txt = message.content
+        trigger_chance = None
+        try:
+            t_chance = int(re.search("\%\%([0-9][0-9])", msg_txt).group(1))
+            if t_chance is not None:
+                msg_txt = re.sub("\%\%([0-9][0-9])", "", msg_txt)
+                trigger_chance = t_chance
+        except:
+            pass
 
         # determine factoid type
         if msg_txt.startswith("!addregex"):
             # user_regex
-            trigger, response = self.split_factoid(message.content,
+            trigger, response = self.split_factoid(msg_txt,
                                                    "!addregex")
             await self.add_to_fdb(message, trigger, response,
-                                  "regex", "text")
+                                  "regex", "text", trigger_chance=trigger_chance)
 
         elif msg_txt.startswith("!wordsearch"):
             # substring
             # prepare factoid data
-            trigger, response = self.split_factoid(message.content,
+            trigger, response = self.split_factoid(msg_txt,
                                                    "!wordsearch")
             if "$***" in msg_txt:
                 # regex
@@ -200,46 +258,46 @@ class BroBotCore:
                     message.content.casefold(), "!wordsearch")
                 trigger = self.prep_regex(trigger)
                 await self.add_to_fdb(message, trigger, response,
-                                      "regex", "text")
+                                      "regex", "text", trigger_chance=trigger_chance)
             else:
                 await self.add_to_fdb(message, trigger, response,
-                                      "substring", "text")
+                                      "substring", "text", trigger_chance=trigger_chance)
 
         elif msg_txt.startswith("!addreaction"):
             # reactions
-            trigger, response = self.split_factoid(message.content,
+            trigger, response = self.split_factoid(msg_txt,
                                                    "!addreaction")
             await self.add_to_fdb(message, trigger, response,
-                                  "substring", "reaction")
+                                  "substring", "reaction", trigger_chance=trigger_chance)
 
         elif msg_txt.startswith("!addregex"):
             # user_regex
-            trigger, response = self.split_factoid(message.content,
+            trigger, response = self.split_factoid(msg_txt,
                                                    "!addregex")
             await self.add_to_fdb(message, trigger, response,
-                                  "regex", "text")
+                                  "regex", "text", trigger_chance=trigger_chance)
         elif msg_txt.startswith("!brobot"):
             # either fullstring or regex
             if "$***" in msg_txt:
                 # regex
                 trigger, response = self.split_factoid(
-                    message.content, "!brobot")
+                    msg_txt, "!brobot")
                 trigger = self.prep_regex(trigger)
                 await self.add_to_fdb(message, trigger, response,
-                                      "regex", "text")
+                                      "regex", "text", trigger_chance=trigger_chance)
             else:
                 # fulltext
-                trigger, response = self.split_factoid(message.content,
+                trigger, response = self.split_factoid(msg_txt,
                                                        "!brobot")
                 trigger = "^" + re.escape(trigger) + "$"
                 await self.add_to_fdb(message, trigger, response,
-                                      "fullstring", "text")
+                                      "fullstring", "text", trigger_chance=trigger_chance)
 
     async def add_to_fdb(self, message, trigger, response,
-                         trigger_type, response_type):
+                         trigger_type, response_type, trigger_chance=100):
         f_id = self.miscdata["next_factoid_id"]
         factoid = {"trigger_type": trigger_type,
-                   "trigger_chance": 100,
+                   "trigger_chance": trigger_chance,
                    "response_type": response_type,
                    "trigger": trigger, "response": response,
                    "user": message.author.id, "factoid_id": f_id}
@@ -727,7 +785,8 @@ class BroBotCore:
             kw.FakeBible(self, "$bible"),
             kw.Swearjar(self, "$swearjar"),
             kw.Thought(self, "$thought"),
-            kw.Wildcard(self, "$wildcard")
+            kw.Wildcard(self, "$wildcard"),
+            kw.Compliment(self, "$compliment")
         ]
         for key in self.madlib:
             key_objs.append(kw.Keyword(self, key))

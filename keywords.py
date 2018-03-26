@@ -126,6 +126,71 @@ class Item(Keyword):
         return re.sub(self.pattern, item, response_txt)
 
 
+class Compliment(Keyword):
+
+    def __init__(self, bot, name, pattern=None, wordbucket=None):
+        self.nouns = [
+            "shirt",
+            "hair",
+            "legs",
+            "breath",
+            "pants",
+            "shoes",
+            "eyes",
+            "ears",
+            "voice",
+            "jacket",
+            "glasses",
+            "bicep",
+            "calf",
+            "tricep",
+            "undercarriage",
+            "sprocket",
+            "flange",
+            "widget",
+            "word"]
+        self.verbs = [
+            "looks",
+            "smells",
+            "tastes",
+            "appears",
+            "seems",
+            "is"]
+        self.adj = [
+            "nice",
+            "pretty",
+            "beautiful",
+            "shiny",
+            "smooth",
+            "playful",
+            "powerful",
+            "majestic",
+            "mysterious",
+            "angry",
+            "fierce",
+            "wrathful",
+            "wholesome",
+            "glorious",
+            "statuesque",
+            "hilarious",
+            "human",
+            "not at all robotic",
+            "alive",
+            "deadly",
+            "crisp",
+            "gorgeous",
+            "balanced"]
+        super().__init__(bot, name, pattern=pattern, wordbucket=wordbucket)
+
+    async def transform(self, response_txt, message, match_obj):
+        cn = choice(self.nouns)
+        cv = choice(self.verbs)
+        ca = choice(self.adj)
+        new_word = "Your {} {} {} today!".format(cn, cv, ca)
+
+        return re.sub(self.pattern, new_word, response_txt)
+
+
 def get_markov_model(path):
     with open(path) as f:
         text = f.read()
