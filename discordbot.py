@@ -43,6 +43,7 @@ class BroBotClient(discord.Client):
     async def safe_send_message(self, dest, content):
         msg = None
         if len(content) == 0:
+            self.logger.info("0 length message")
             return
         try:
             await self.send_typing(dest)

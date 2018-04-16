@@ -41,9 +41,11 @@ class BroBotCore:
                                   user_agent="brobot")
         self.keywords = self.get_keywords()
         self.commands = {
+                "!help": self.get_help,
                 "!channel": self.whichchannel,
                 "sfw sasuke": self.sasuke,
                 "!removepermission": self.remove_permission,
+                "!triggerchance": self.update_factoid_trigger,
                 "!inspect": self.inspect,
                 "!syllables": self.check_syllables,
                 "!addpermission": self.add_permission,
@@ -78,6 +80,23 @@ class BroBotCore:
         # will mention something is a good band name
         self.band_chance = 80
         self.response_chance_padding = 0
+
+    async def get_help(self, message):
+        """ !help [command]:
+            Used to get help about how to use another command.
+        """
+        try:
+            command = message.content.split(" ", 1)[1]
+            self.logger.info("Command help: {}".format(command))
+            func_help = str(self.commands[command].__doc__)
+            self.logger.info("{}".format(func_help))
+            await self.discord_client.safe_send_message(message.channel, func_help)
+        except KeyError:
+            await self.discord_client.safe_send_message(message.channel, "No command by that name")
+        except IndexError:
+            await self.discord_client.safe_send_message(message.channel, self.get_help.__doc__)
+        except Exception as e:
+            raise e
 
     async def get_response(self, message):
 
@@ -159,6 +178,9 @@ class BroBotCore:
                 self.haiku = 0
 
     async def check_syllables(self, message):
+        """ !syllables [word or phrase]:
+            Tells you how many syllables brobot thinks are in a given word or phrase
+        """
         txt = message.content.split(" ", 1)[1]
         syls = hf.syllable_count(txt)
         msg = "There are {} syllables in that phrase".format(syls)
@@ -175,7 +197,7 @@ class BroBotCore:
                 await self.factoid_chance(f_id, 1)
             elif str(reaction.emoji) == "👎":
                 self.logger.info("Thumbs down")
-                await self.factoid_chance(f_id, -1)
+                await self.factoid_chance(f_id, -5)
         return
 
     async def factoid_chance(self, factoid_id, chance_delta):
@@ -223,14 +245,32 @@ class BroBotCore:
                 self.permissions[user.id]["blacklist"].remove(cmd)
 
     async def add_factoid(self, message):
-        """
-            1. determine factoid type
-            2. prepare factoid data
-            3. add factoid to database
-            4. acknowledge addition
+        """ (!brobot | !addregex | !wordsearch) [trigger] <is> [response] {%%(10-100)}:
+            Teaches brobot a response to a given trigger.
+            \"!brobot\" will force the trigger to match the entire messge.
+            \"!addregex\" will interpret the trigger as regex to use to test matches.
+            \"!wordsearch\" will look for the trigger anywhere in the message
+
+            Trigger chance:
+                You can assign the factoid a chance to fire with "%%(10-100)"
+                This chance can be altered by server voting, but will never drop below 10%
+
+            You can include keywords in your reponse that will do different things. The below
+            are those that are implemented currently:
+
+            Keywords:
+                $digit: random digit 0-9
+                $nonzero: random digit 1-9
+                $someone: the nickname of a random person on the server
+                $who: the nickname of whoever trigger the factoid
+                $item: a random item from brobots inventory
+                $bible: A fake bible quote
+                $swearjar: this will cause a quarter to be added to the swearjar
+                $thought: Brobot will replace this with what hes thinking about
+                $compliment: a simple randomly generated compliment
         """
         msg_txt = message.content
-        trigger_chance = None
+        trigger_chance = 100
         try:
             t_chance = int(re.search("\%\%([0-9][0-9])", msg_txt).group(1))
             if t_chance is not None:
@@ -412,9 +452,9 @@ class BroBotCore:
                 user_to_quote.mention, quote))
 
     async def addquote(self, message):
-        """
-        searches for a given quote by a given user and saves it.
-        format is "!addquote @user <part of message>"
+        """ !addquote [@user] [message snippet]
+            Adds a quote from the @ed user.
+            Message snippet must be exact.
         """
         s = self.strip_command(message.content, "!addquote")
         for user in message.mentions:
@@ -439,8 +479,8 @@ class BroBotCore:
                 return
 
     async def getquote(self, message):
-        """
-        returns a random quote from a given user
+        """ !getquote [@user]
+            Returns a random quote from the @ed user.
         """
         for user in message.mentions:
             if user.id not in self.qdb:
@@ -472,12 +512,18 @@ class BroBotCore:
         await self.discord_client.safe_send_message(message.channel, img_url)
 
     async def zalgo_text(self, message):
+        """ !zalgo [phrase]:
+            returns the phrase zalgo'd
+        """
         text = message.content.split(" ", 1)[1]
         zalgo_text = zalgo.main(text, "NEAR")
         await self.discord_client.safe_send_message(
             message.channel, zalgo_text)
 
     async def buy_item(self, message):
+        """ !shop:
+            Searches craigslist for an item brobot can afford and "buys" it with money from his swearjar
+        """
         budget = self.miscdata["swearjar"]
         item = await self.find_from_craigslist(budget)
         if item is not None:
@@ -521,8 +567,8 @@ class BroBotCore:
         return random.choice(items_formatted)
 
     async def madcats(self, message):
-        """
-        Lists current available madlib catergories
+        """ !categories:
+            Lists brobot's current wildcard categories
         """
         cats = [k for k, v in self.miscdata["madlib"].items()]
         s_cats = " ".join(cats)
@@ -536,9 +582,9 @@ class BroBotCore:
         await self.discord_client.safe_send_message(message.channel, msg)
 
     async def addlib(self, message):
-        """
-        Adds a give word to a given madlib category with format
-        '!addlib <category> <word>'
+        """ !addlib [category] [word]:
+            Adds [word] to brobots wildcard category [category]
+            Categories can be listed with \"!categories\"
         """
         s = self.strip_command(message.content, "!addlib")
         s = s.split(" ", 1)
@@ -553,9 +599,9 @@ class BroBotCore:
             await self.discord_client.safe_send_message(message.channel, msg)
 
     async def addcat(self, message):
-        """
-        Adds a category to the madlib categories
-        Currently will only allow me to do this
+        """!addcat [category]
+            Adds a wilcard category to brobots list of categories.
+            Currently only enabled for tday.
         """
         if message.author.id != "204378458393018368":
             raise CantDoThatDave(message)
@@ -576,8 +622,8 @@ class BroBotCore:
                     message.channel, "That category already exists")
 
     async def list_pockets(self, message):
-        """"
-        Lists what are in his poeckts
+        """!pockets:
+            Lists the items in brobot's inventory
         """
         if len(self.miscdata["pockets"]) < 1:
             await self.discord_client.safe_send_message(
@@ -590,9 +636,8 @@ class BroBotCore:
         await self.discord_client.safe_send_message(message.channel, msg)
 
     async def fill_pockets(self, message):
-        """
-        Takes an item and puts it in his pockets.
-        If he has too many items in his pockets he'll throw one away first
+        """!give [item]:
+            Gives [item] to brobot to keep in his inventory, will drop and item if he is already at his cap
         """
         item = message.content.split(' ', 1)[1]
         if len(self.miscdata["pockets"]) >= 5:
@@ -607,9 +652,8 @@ class BroBotCore:
             await self.discord_client.safe_send_message(message.channel, msg)
 
     async def empty_pockets(self, message):
-        """
-        Removes an item from his pockets at random and gives it to the person
-        who asked
+        """!take:
+            Chooses a random item from his inventory and gives it to the person who asked for it.
         """
         if len(self.miscdata["pockets"]) < 1:
             await self.discord_client.safe_send_message(
@@ -638,9 +682,10 @@ class BroBotCore:
         await self.discord_client.safe_send_message(message.channel, msg)
 
     async def memeplease(self, message):
-        """
-        searches tumblr and occasionally google images for a picture using
-        a provided string, and posts it into chat.
+        """!memeplease [tag]:
+            Looks for images on tumblr with the given tag, and posts one randomly.
+            Note that it is only looking for a single tag.
+            i.e. \"!memplease hot dog\" will look for images tagged with \"hot dog\", not both \"hot\" and \"dog\"
         """
         tag = message.content.split(' ', 1)[1]
         r = requests.get(
@@ -693,6 +738,7 @@ class BroBotCore:
         find_factoid = find_factoid_list[0]
         msg_txt = ("Factoid ID: {factoid_id}\n"
                    + "Trigger: {trigger}\n"
+                   + "Trigger Chance: {trigger_chance}\n"
                    + "Response: {response}\n"
                    + "Author ID: {user}\n").format(**find_factoid)
         await self.discord_client.safe_send_message(message.channel, msg_txt)
@@ -711,6 +757,7 @@ class BroBotCore:
         for factoid in found_factoids:
             msg_txt = ("Factoid ID: {factoid_id}\n"
                        + "Trigger: {trigger}\n"
+                       + "Trigger Chance: {trigger_chance}\n"
                        + "Response: {response}\n"
                        + "Author ID: {user}\n").format(**factoid)
 
@@ -733,10 +780,28 @@ class BroBotCore:
                    + "Factoid ID: {factoid_id}\n"
                    + "Trigger: {trigger}\n"
                    + "Response: {response}\n"
+                   + "Trigger Chance: {trigger_chance}\n"
                    + "Author ID: {user}\n").format(**find_factoid)
 
         await self.discord_client.safe_send_message(message.channel, msg_txt)
         self.fdb.remove(find_factoid)
+
+    async def update_factoid_trigger(self, message):
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        try:
+            rr = re.search("!triggerchance id=(\d*) \%\%(\d*)", message.content)
+            factoid_id = int(rr.group(1))
+            trigger_chance = int(rr.group(2))
+            factoid = [factoid for factoid in self.fdb if factoid["factoid_id"] == factoid_id][0]
+            factoid["trigger_chance"] = trigger_chance
+
+            msg = "Updated factoid {} to have trigger chance {}".format(factoid_id, trigger_chance)
+            await self.discord_client.safe_send_message(message.channel, msg)
+        except IndexError:
+            await self.discord_client.safe_send_message(message.channel, "No factoid with that ID")
+        except Exception as e:
+            raise e
 
     async def goddamnit_eric(self, message):
         if message.author.id == "299208991765037066":
