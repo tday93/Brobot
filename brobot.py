@@ -53,6 +53,7 @@ class BroBotCore:
                 "!addfactoid": self.add_factoid,
                 "!brobotreact": self.add_factoid,
                 "!addquote": self.addquote,
+                "!allquote": self.allquote,
                 "!getquote": self.getquote,
                 "!manquote": self.manquote,
                 "!memeplease": self.memeplease,
@@ -389,6 +390,7 @@ class BroBotCore:
             if len(final_factoids) <= 0:
                 self.response_chance_padding += 5
             elif len(final_factoids) >= 1:
+                self.response_chance_padding = 0
                 # choose factoid to be displayed
                 c_factoid = random.choice(final_factoids)
                 response_txt = await self.better_parse(message, c_factoid)
@@ -479,23 +481,52 @@ class BroBotCore:
                 return
 
     async def getquote(self, message):
-        """ !getquote [@user]
-            Returns a random quote from the @ed user.
+        """ !getquote [@user] (?={search string})
+            Returns a random quote from the @ed user. Can optionally search for a quote
+            matching the given string.
         """
         for user in message.mentions:
             if user.id not in self.qdb:
                 await self.discord_client.safe_send_message(
                     message.channel, "I don't have any quotes from that user.")
             quotes = self.qdb[user.id]["quotes"]
+            if "?=" in message.content:
+                query = message.content.split("?=", 1)[1]
+                quotes = [quote for quote in quotes if re.search(query, quote) is not None]
             if len(quotes) <= 0:
                 if message.content.startswith("!getquote"):
                     await self.discord_client.safe_send_message(
                         message.channel,
-                        "I don't have any quotes from that user.")
+                        "I don't have any matching quotes from that user.")
                 return
             quote = random.choice(quotes)
             msg = '{} said:\n  {}'.format(user.mention, quote)
             await self.discord_client.safe_send_message(message.channel, msg)
+
+    async def allquote(self, message):
+        """
+            !allquote [@user]
+            Prints all quotes from a given user, only usable by tday.
+        """
+        if message.author.id != "204378458393018368":
+            raise CantDoThatDave(message)
+        for user in message.mentions:
+            if user.id not in self.qdb:
+                await self.discord_client.safe_send_message(
+                    message.channel, "I don't have any quotes from that user.")
+            quotes = self.qdb[user.id]["quotes"]
+            if "?=" in message.content:
+                query = message.content.split("?=", 1)[1]
+                quotes = [quote for quote in quotes if re.search(query, quote) is not None]
+            if len(quotes) <= 0:
+                if message.content.startswith("!getquote"):
+                    await self.discord_client.safe_send_message(
+                        message.channel,
+                        "I don't have any matching quotes from that user.")
+                return
+            for quote in quotes:
+                msg = '{} said:\n  {}'.format(user.mention, quote)
+                await self.discord_client.safe_send_message(message.channel, msg)
 
     async def retro_text(self, message):
         sp_text = message.content.split(" ", 1)[1]
